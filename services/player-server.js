@@ -41,6 +41,29 @@ function pickPlayer(filePath) {
   return { command: cmd.command, args: [...cmd.args, filePath] };
 }
 
+/**
+ * 按平台注入声卡参数：
+ *  - 树莓派 arm/arm64 → 直连耳机声卡（-a hw:CARD=Headphones）
+ *  - x86 等其他平台 → 无追加参数，用系统默认声卡（桌面经 PulseAudio 路由）
+ */
+function platformCardArgs(arch, isMp3) {
+  const cards = config.platform[arch];
+  if (!cards) return [];
+  return isMp3 ? cards.mp3 : cards.other;
+}
+
+/**
+ * 组装播放参数 = 工具默认参数 + 平台声卡参数 + 文件路径
+ * 例（树莓派 mp3）: mpg123 -q -a hw:CARD=Headphones file.mp3
+ * 例（x86 mp3）   : mpg123 -q file.mp3   （系统默认声卡）
+ */
+function buildArgs(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  const isMp3 = ext === '.mp3';
+  const cmd = isMp3 ? config.player.mp3 : config.player.other;
+  return { command: cmd.command, args: [...cmd.args, ...platformCardArgs(process.arch, isMp3), filePath] };
+}
+
 /** 启动子进程；若命令不存在则回退到 ffplay */
 function spawnWithFallback(spec, onEnd) {
   const trySpawn = (command, args) =>
@@ -53,8 +76,10 @@ function spawnWithFallback(spec, onEnd) {
   return trySpawn(spec.command, spec.args)
     .catch(() => {
       // 首选工具缺失（如 mpg123 未安装），回退 ffplay
+      // 回退同样按平台注入声卡参数
       const fb = config.player.other;
-      return trySpawn(fb.command, [...fb.args, spec.args[spec.args.length - 1]]);
+      const fbCard = platformCardArgs(process.arch, false);
+      return trySpawn(fb.command, [...fb.args, ...fbCard, spec.args[spec.args.length - 1]]);
     })
     .catch(() => null); // 两个都失败
 }
@@ -70,7 +95,7 @@ async function play(filePath, onEnd) {
   killCurrent(); // 停掉上一个（轻量，不用 pkill 以免误伤并发中的新进程）
 
   console.log(`🔊 音箱播放: ${filePath}`);
-  const spec = pickPlayer(filePath);
+  const spec = buildArgs(filePath);
   const newProc = await spawnWithFallback(spec, onEnd);
 
   // 竞态检查：等待期间若又有新的 play() 调用，本次结果作废
