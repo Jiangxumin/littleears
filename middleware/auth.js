@@ -1,9 +1,10 @@
 /**
  * auth.js — 密码认证中间件（cookie session）
  *
- * 设计：
- *  - password 为空（默认）→ 全部放行，局域网免密访问
- *  - 配置 password 后 → 公网访问需登录，保护未授权访问
+ * 访问策略（配置 password 后生效）：
+ *  - 局域网来源（私有 IP）→ 永久免密，直接放行
+ *  - 公网来源 → 需登录（cookie session），保护未授权访问
+ *  - 未配置 password → 全部放行
  *
  * 为什么用 cookie session 而非 HTTP Basic Auth？
  *  - <audio> 标签拉流时不带 Basic Auth 凭据头，会导致认证后音频无法播放
@@ -38,15 +39,53 @@ function parseCookies(cookieHeader) {
   return obj;
 }
 
+/**
+ * 判断 IP 是否为局域网（私有地址 / 回环）
+ * RFC1918 私有段 + 回环 + 链路本地：
+ *  - 10.0.0.0/8
+ *  - 172.16.0.0/12
+ *  - 192.168.0.0/16
+ *  - 127.0.0.0/8（本机）
+ *  - ::1, fc00::/7, fe80::/10（IPv6）
+ */
+function isPrivateIp(ip) {
+  if (!ip) return false;
+  // IPv6 回环与私有
+  if (ip === '::1' || ip.startsWith('fc') || ip.startsWith('fd') || ip.startsWith('fe80')) {
+    return true;
+  }
+  // 去掉 IPv4 映射的 IPv6 前缀 ::ffff:
+  const v4 = ip.replace(/^::ffff:/, '');
+  const parts = v4.split('.');
+  if (parts.length !== 4) return false;
+  const [a, b] = parts.map(Number);
+  return (
+    a === 10 ||                         // 10.0.0.0/8
+    (a === 172 && b >= 16 && b <= 31) || // 172.16.0.0/12
+    (a === 192 && b === 168) ||          // 192.168.0.0/16
+    a === 127                            // 127.0.0.0/8
+  );
+}
+
+/** 获取请求来源 IP（优先 X-Forwarded-For，适用于反向代理/端口映射场景） */
+function getClientIp(req) {
+  const xff = req.headers['x-forwarded-for'];
+  if (xff) return xff.split(',')[0].trim();
+  return req.ip || req.socket?.remoteAddress || '';
+}
+
 /** 认证中间件 */
 function auth(req, res, next) {
-  // 未配置密码 → 局域网免密，全部放行
+  // 未配置密码 → 全部放行
   if (!config.password) return next();
+
+  // 局域网来源 → 永久免密
+  if (isPrivateIp(getClientIp(req))) return next();
 
   // 公开路径放行
   if (isPublic(req.path)) return next();
 
-  // 检查 session cookie
+  // 公网来源：检查 session cookie
   const cookies = parseCookies(req.headers.cookie);
   if (cookies.le_auth === TOKEN) return next();
 
@@ -57,4 +96,4 @@ function auth(req, res, next) {
   return res.redirect('/login');
 }
 
-module.exports = { auth, TOKEN };
+module.exports = { auth, TOKEN, isPrivateIp };
