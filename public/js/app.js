@@ -9,7 +9,8 @@
 (() => {
   'use strict';
 
-  let mode = localStorage.getItem('le_mode') || 'browser'; // 默认浏览器播放
+  // 默认音箱播放：磨耳朵主场景是「音箱出声」，浏览器是辅助
+  let mode = localStorage.getItem('le_mode') || 'server';
 
   const fileTreeEl = document.getElementById('fileTree');
   const audioEl = document.getElementById('audio');
@@ -30,13 +31,18 @@
     }
   }
 
+  // 同步按钮高亮（初始化时也要调用，不触发停止）
+  function syncModeUI() {
+    document.querySelectorAll('.mode-btn').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.mode === mode);
+    });
+  }
+
   function setMode(newMode) {
     if (newMode === mode) return; // 同模式切换无需处理
     mode = newMode;
     localStorage.setItem('le_mode', newMode);
-    document.querySelectorAll('.mode-btn').forEach((btn) => {
-      btn.classList.toggle('active', btn.dataset.mode === newMode);
-    });
+    syncModeUI();
     stopCurrentPlayback(); // 切模式 → 停止之前的声音
   }
 
@@ -141,6 +147,6 @@
   }
 
   // ---------- 初始化 ----------
-  setMode(mode);
+  syncModeUI(); // 只同步按钮高亮，不触发停止（页面加载时没有在播放）
   loadTree();
 })();

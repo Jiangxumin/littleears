@@ -15,6 +15,7 @@ const path = require('path');
 const config = require('../config');
 
 let proc = null; // 当前播放子进程
+let playGen = 0; // 播放代际号：解决快速连点时的异步竞态
 
 /**
  * 清理残留的播放进程。
@@ -64,11 +65,20 @@ function spawnWithFallback(spec, onEnd) {
  * @param {Function} onEnd 播放自然结束时的回调
  */
 async function play(filePath, onEnd) {
-  stop(); // 先停掉上一个
+  // 代际令牌：本次播放的唯一编号。快速连点时，只有最新的一次会被采纳
+  const gen = ++playGen;
+  killCurrent(); // 停掉上一个（轻量，不用 pkill 以免误伤并发中的新进程）
 
   console.log(`🔊 音箱播放: ${filePath}`);
   const spec = pickPlayer(filePath);
-  proc = await spawnWithFallback(spec, onEnd);
+  const newProc = await spawnWithFallback(spec, onEnd);
+
+  // 竞态检查：等待期间若又有新的 play() 调用，本次结果作废
+  if (gen !== playGen) {
+    if (newProc) newProc.kill('SIGTERM'); // 迟到的进程，立即杀掉
+    return;
+  }
+  proc = newProc;
 
   if (!proc) {
     console.error(`❌ 播放工具启动失败，请安装: sudo apt install mpg123 ffmpeg`);
@@ -81,21 +91,35 @@ async function play(filePath, onEnd) {
   });
 
   proc.on('exit', (code, signal) => {
-    proc = null;
+    // 只有当前代际的进程才清除 proc，避免误清新播放
+    if (gen === playGen) proc = null;
     // 只有「自然退出」（非我们主动 kill）才视为播放结束
     const stoppedByUs = signal === 'SIGTERM' || signal === 'SIGKILL';
     if (!stoppedByUs && onEnd) onEnd();
   });
 }
 
-/** 停止播放 */
+/** 停止播放（模式切换 / 主动停止时调用） */
 function stop() {
+  // 代际号前进：让所有「等待中的播放」作废
+  playGen++;
+  killCurrent();
+  // 兜底强杀：SIGKILL 不可被捕获，即使有漏网的 mpg123/ffplay 也必死
+  // （进程消失时 exit 事件的 signal 为 SIGKILL，已计入 stoppedByUs，不会误触发 onEnd）
+  try {
+    execFileSync('pkill', ['-9', '-f', '^(mpg123|ffplay)']);
+  } catch (e) {
+    /* 没有进程可杀时 pkill 返回非零，忽略 */
+  }
+}
+
+/** 只杀当前引用的进程（内部用，play 切换时调用，不触发 pkill 全杀） */
+function killCurrent() {
   if (proc) {
     proc.kill('SIGTERM');
     proc = null;
     console.log('⏹ 音箱停止');
   }
-  currentFile = null;
 }
 
 /** 当前是否有播放进程 */
