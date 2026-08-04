@@ -28,7 +28,7 @@ const PLAY_MODE = { SINGLE: 'single', SEQUENTIAL: 'sequential', SHUFFLE: 'shuffl
 class PlayerManager {
   constructor() {
     this.state = STATE.IDLE;
-    this.playMode = PLAY_MODE.SEQUENTIAL; // 默认顺序播放
+    this.playMode = PLAY_MODE.SHUFFLE; // 默认随机播放
     this.outputMode = 'server'; // 默认音箱
 
     this.queue = []; // 相对路径数组
