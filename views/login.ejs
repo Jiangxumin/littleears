@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LittleEars 登录</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: #fdf6ec;
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh; padding: 20px;
+    }
+    .login-card {
+      background: #fff; border-radius: 16px; padding: 32px 28px;
+      width: 100%; max-width: 320px;
+      box-shadow: 0 8px 32px rgba(74, 63, 53, 0.12);
+      text-align: center;
+    }
+    .login-card h1 { font-size: 2rem; margin-bottom: 4px; }
+    .login-card p { color: #8a7f72; font-size: 0.9rem; margin-bottom: 24px; }
+    .login-card input {
+      width: 100%; padding: 12px 14px; font-size: 1rem;
+      border: 2px solid #e0d5c6; border-radius: 10px; margin-bottom: 14px;
+      outline: none; transition: border-color 0.2s;
+    }
+    .login-card input:focus { border-color: #e07a5f; }
+    .login-card button {
+      width: 100%; padding: 12px; font-size: 1rem; border: none;
+      border-radius: 10px; background: #e07a5f; color: #fff; cursor: pointer;
+      transition: background 0.2s;
+    }
+    .login-card button:hover { background: #d96f52; }
+    .error { color: #d64545; font-size: 0.85rem; margin-bottom: 14px; }
+  </style>
+</head>
+<body>
+  <form class="login-card" method="POST" action="/login" autocomplete="off">
+    <h1>🎧 LittleEars</h1>
+    <p>请输入访问密码</p>
+    <% if (typeof error !== 'undefined' && error) { %>
+      <div class="error"><%= error %></div>
+    <% } %>
+    <input type="password" name="password" placeholder="密码" autofocus required>
+    <button type="submit">进入</button>
+  </form>
+</body>
+</html>

@@ -17,6 +17,13 @@
       <button class="mode-btn" data-mode="server">🔊 音箱</button>
       <button class="mode-btn" data-mode="browser">📱 浏览器</button>
     </div>
+
+    <div class="topbar__actions">
+      <button class="icon-btn" id="btnRefresh" title="重新扫描音频文件">🔄</button>
+      <% if (typeof authEnabled !== 'undefined' && authEnabled) { %>
+        <button class="icon-btn" id="btnLogout" title="退出登录">🚪</button>
+      <% } %>
+    </div>
   </header>
 
   <main class="content">

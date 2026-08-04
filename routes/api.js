@@ -26,6 +26,18 @@ router.get('/files', (req, res) => {
   res.json(scanner.getTree());
 });
 
+/** 重新扫描文件目录（新增/删除音频后调用，无需重启服务） */
+router.post('/refresh', (req, res) => {
+  const tree = scanner.refresh();
+  res.json({ ok: true, fileCount: countFiles(tree) });
+});
+
+/** 统计文件树中的音频文件数 */
+function countFiles(node) {
+  if (node.type === 'file') return 1;
+  return (node.children || []).reduce((sum, c) => sum + countFiles(c), 0);
+}
+
 /**
  * 播放：path 可以是文件或目录
  *  - 文件 → 单曲队列

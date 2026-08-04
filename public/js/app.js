@@ -262,6 +262,44 @@
     }
   }, 2000);
 
+  // ================= 轻量提示 toast =================
+  let toastTimer = null;
+  function toast(message) {
+    let el = document.getElementById('toast');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'toast';
+      el.className = 'toast';
+      document.body.append(el);
+    }
+    el.textContent = message;
+    el.classList.add('toast--show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('toast--show'), 2500);
+  }
+
+  // ================= 刷新文件树 =================
+  document.getElementById('btnRefresh').addEventListener('click', async () => {
+    const btn = document.getElementById('btnRefresh');
+    btn.classList.add('spin');
+    try {
+      const res = await api('/api/refresh', { method: 'POST' });
+      await loadTree();
+      toast(`已刷新，共 ${res.fileCount} 个音频`);
+    } catch (e) {
+      toast('刷新失败');
+    }
+    setTimeout(() => btn.classList.remove('spin'), 600);
+  });
+
+  // ================= 退出登录 =================
+  const btnLogout = document.getElementById('btnLogout');
+  if (btnLogout) {
+    btnLogout.addEventListener('click', () => {
+      location.href = '/logout';
+    });
+  }
+
   // ================= 初始化 =================
   syncModeUI();
   syncPlayModeUI();

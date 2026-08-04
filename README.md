@@ -50,6 +50,18 @@ sudo apt install mpg123 ffmpeg
 npm start
 ```
 
+**设置访问密码**（公网/远程访问时强烈建议）：
+
+```bash
+# 方式一：环境变量（推荐，不写入代码）
+LITTLEEARS_PASSWORD=你的密码 npm start
+
+# 方式二：修改 config.js 中的 password 字段
+```
+
+- 不设密码 → 局域网免密访问（适合纯内网）
+- 设了密码 → 首次访问需登录，保护公网访问
+
 看到以下输出即成功：
 
 ```
@@ -87,20 +99,81 @@ media/廖彩杏/
 - 文件名建议 `序号-子序号_名称.mp3`（如 `1-a_...`、`2-b_...`），按数值自然排序
 - 支持格式：`.mp3` `.wav` `.m4a` `.mp4` `.flac` `.ogg`
 
-## 远程访问（M3 规划）
+## 远程访问（花生壳 + 端口映射）
+
+通过花生壳域名 + 路由器端口映射，在外网也能控制播放。
 
 ```
 互联网 → 花生壳域名(xxx.vicp.net:3000) → 路由器端口映射 → 树莓派内网IP:3000
+```
+
+**配置步骤：**
+
+1. **路由器端口映射**：登录路由器 → 端口映射/虚拟服务器
+   - 外部端口：`3000`
+   - 内部 IP：树莓派内网地址（如 `192.168.1.100`，`hostname -I` 查看）
+   - 内部端口：`3000`
+   - 协议：TCP
+
+2. **花生壳**：注册花生壳账号 → 添加映射 → 绑定域名（如 `xxx.vicp.net`）→ 指向上述端口
+
+3. **设置访问密码**（公网必须）：`LITTLEEARS_PASSWORD=你的密码` 启动
+
+4. 外网访问 `http://xxx.vicp.net:3000`，输入密码即可控制
+
+> 树莓派内网 IP 建议在路由器里绑定 MAC 地址固定，避免重启后 IP 变化。
+
+## 部署到树莓派（开机自启）
+
+用 **systemd** 让服务开机自动运行、崩溃自动重启。
+
+1. 创建服务文件 `/etc/systemd/system/littleears.service`：
+
+```ini
+[Unit]
+Description=LittleEars Audio Player
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/littleears
+Environment=LITTLEEARS_PASSWORD=你的密码
+ExecStart=/usr/bin/node server.js
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+> `User`、`WorkingDirectory`、`node` 路径按实际修改（`which node` 查看 node 路径）。
+
+2. 启用并启动：
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable littleears   # 开机自启
+sudo systemctl start littleears    # 立即启动
+sudo systemctl status littleears   # 查看状态
+journalctl -u littleears -f        # 查看实时日志
 ```
 
 ## API 一览
 
 | 方法 | 路径 | 功能 |
 |------|------|------|
-| `GET` | `/` | 主页面 |
+| `GET` | `/` | 主页面（未登录重定向 /login） |
+| `GET/POST` | `/login` `/logout` | 登录 / 退出（配置密码后生效） |
 | `GET` | `/api/files` | 音频文件树 JSON |
-| `POST` | `/api/play` | 播放 `{ filePath, mode: "server"\|"browser" }` |
-| `POST` | `/api/stop` | 停止音箱播放 |
+| `POST` | `/api/refresh` | 重新扫描文件目录 |
+| `POST` | `/api/play` | 播放 `{ path, mode, playMode }`（path 可为文件或目录） |
+| `POST` | `/api/next` | 下一首（同目录内） |
+| `POST` | `/api/pause` | 暂停 / 恢复 |
+| `POST` | `/api/stop` | 停止 |
+| `POST` | `/api/playMode` | 循环模式 `{ playMode: "single"\|"sequential"\|"shuffle" }` |
+| `GET` | `/api/status` | 当前播放状态 |
+| `GET` | `/media/*` | 音频文件流（受认证保护） |
 
 ## 开发
 
@@ -120,5 +193,5 @@ npm run dev    # 开发模式（文件变更自动重启）
 
 - [x] **M1 — Hello Ears**（2026-08-04）：文件树 + 双模式播放 + 路径安全
 - [x] **M2 — 完整播放体验**（2026-08-04）：循环模式 🔂🔁🔀、暂停/进度、目录播放、下一首不跨目录
-- [ ] **M3 — 远程 + 体验**：密码认证、花生壳、移动端适配
+- [x] **M3 — 远程 + 体验**（2026-08-04）：密码认证、文件刷新、移动端适配、花生壳远程、开机自启
 - [ ] **M4 — 锦上添花**：定时停止、历史、收藏

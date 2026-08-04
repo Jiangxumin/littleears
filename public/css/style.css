@@ -243,17 +243,86 @@ body {
 .dir-play:hover { background: #d96f52; }
 .dir-play:active { transform: scale(0.9); }
 
+/* ---------- 顶栏图标按钮（刷新/退出） ---------- */
+.topbar__actions {
+  display: flex;
+  gap: 6px;
+}
+
+.icon-btn {
+  width: 38px;
+  height: 38px;
+  border: 2px solid #e0d5c6;
+  border-radius: 50%;
+  background: #fff;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-btn:hover { background: #f7efe3; border-color: #e07a5f; }
+.icon-btn:active { transform: scale(0.9); }
+
+/* 刷新旋转动画 */
+@keyframes spin { to { transform: rotate(360deg); } }
+.icon-btn.spin { animation: spin 0.6s linear; }
+
+/* ---------- toast 提示 ---------- */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: #4a3f35;
+  color: #fff;
+  padding: 10px 20px;
+  border-radius: 24px;
+  font-size: 0.9rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.3s;
+  z-index: 1000;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.toast--show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
 /* ---------- 移动端适配 ---------- */
 @media (max-width: 600px) {
   .topbar {
-    padding: 12px 16px;
+    padding: 10px 14px;
+    /* 安全区：避开刘海/底部横条 */
+    padding-top: max(10px, env(safe-area-inset-top));
+    padding-left: max(14px, env(safe-area-inset-left));
+    padding-right: max(14px, env(safe-area-inset-right));
   }
+  .logo { font-size: 1.2rem; }
+  .mode-switch__label { display: none; } /* 窄屏隐藏文字标签 */
+  .mode-btn { padding: 8px 14px; } /* 更大的触摸目标 */
+
   .content,
-  .now-playing {
-    margin-left: 12px;
-    margin-right: 12px;
+  .player {
+    margin-left: 10px;
+    margin-right: 10px;
   }
-  .content {
-    padding-bottom: 24px;
+  .content { padding-bottom: max(24px, env(safe-area-inset-bottom)); }
+
+  .player { padding: 14px 14px; }
+  .ctrl-btn { width: 46px; height: 46px; } /* 控制按钮加大 */
+  .ctrl-btn--big { width: 56px; height: 56px; }
+
+  /* 横屏：播放器横向铺开 */
+  @media (orientation: landscape) and (max-height: 500px) {
+    .player__progress { margin-top: 8px; }
   }
+
+  /* 文件树触摸目标 */
+  .tree-item { padding: 11px 10px; }
+  .dir-play { width: 30px; height: 30px; }
 }
