@@ -164,7 +164,7 @@ body {
   box-shadow: 0 2px 6px rgba(224, 122, 95, 0.4);
 }
 
-/* ---------- 文件树 ---------- */
+/* ---------- 文件浏览（进入/返回式导航） ---------- */
 .content {
   padding: 0 24px 32px;
 }
@@ -181,18 +181,78 @@ body {
   color: #8a7f72;
 }
 
-.tree {
+/* 顶部导航栏：← 返回 + 面包屑 */
+.browser-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 4px 6px 10px;
+  border-bottom: 2px solid #f0e7da;
+  margin-bottom: 8px;
+}
+
+.back-btn {
+  border: none;
+  background: #f7efe3;
+  color: #4a3f35;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 7px 16px;
+  border-radius: 18px;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  white-space: nowrap;
+}
+
+.back-btn:hover { background: #ffe8df; }
+.back-btn:active { transform: scale(0.94); }
+
+.crumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  min-width: 0;
+}
+
+.crumb {
+  border: none;
+  background: none;
+  color: #8a7f72;
+  font-size: 0.85rem;
+  padding: 4px 6px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.crumb:hover:not(:disabled) { background: #f7efe3; color: #e07a5f; }
+
+.crumb--current {
+  color: #5d5244;
+  font-weight: 600;
+  cursor: default;
+}
+
+.crumb-sep { color: #d6cbbd; }
+
+/* 分区标题：目录 / 播放列表 */
+.browser-section {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #8a7f72;
+  padding: 10px 10px 4px;
+}
+
+/* 行列表 */
+.browse {
   list-style: none;
 }
 
-.tree ul {
-  list-style: none;
-  margin-left: 18px;
-  border-left: 2px solid #f0e7da;
-  padding-left: 10px;
-}
-
-.tree-item {
+.browse-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 8px 10px;
   border-radius: 8px;
   cursor: pointer;
@@ -200,48 +260,48 @@ body {
   font-size: 0.95rem;
 }
 
-.tree-item:hover {
-  background: #f7efe3;
-}
+.browse-row:hover { background: #f7efe3; }
+.browse-row:active { background: #ffe8df; }
 
-.tree-item--file:active {
-  background: #ffe8df;
-}
+.browse-row--dir { font-weight: 600; color: #5d5244; }
+.browse-row--file { color: #4a3f35; }
 
-.dir-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  border-radius: 8px;
-  padding-right: 8px;
-}
-
-.dir-header:hover {
-  background: #f7efe3;
-}
-
-.dir-label {
-  font-weight: 600;
-  color: #5d5244;
+.row-label {
   flex: 1;
-  padding: 8px 10px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.dir-play {
+/* 正在播放的行 */
+.browse-row--playing {
+  background: #ffe8df;
+  color: #e07a5f;
+  font-weight: 600;
+}
+
+.browse-row--playing::after {
+  content: '♪';
+  font-size: 1.1rem;
+}
+
+/* 目录行 ▶ 播放全部 */
+.row-play {
   border: none;
   background: #e07a5f;
   color: #fff;
   border-radius: 50%;
-  width: 26px;
-  height: 26px;
-  font-size: 0.75rem;
+  width: 28px;
+  height: 28px;
+  font-size: 0.8rem;
   cursor: pointer;
+  flex-shrink: 0;
   transition: transform 0.1s;
 }
 
-.dir-play:hover { background: #d96f52; }
-.dir-play:active { transform: scale(0.9); }
+.row-play:hover { background: #d96f52; }
+.row-play:active { transform: scale(0.9); }
 
 /* ---------- 顶栏图标按钮（刷新/退出） ---------- */
 .topbar__actions {
@@ -322,7 +382,8 @@ body {
     .player__progress { margin-top: 8px; }
   }
 
-  /* 文件树触摸目标 */
-  .tree-item { padding: 11px 10px; }
-  .dir-play { width: 30px; height: 30px; }
+  /* 文件浏览触摸目标 */
+  .browse-row { padding: 12px 10px; }
+  .row-play { width: 32px; height: 32px; }
+  .back-btn { padding: 9px 16px; }
 }

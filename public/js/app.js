@@ -2,7 +2,8 @@
  * app.js — 前端交互逻辑（M2）
  *
  * 功能：
- *  - 文件树渲染（可折叠，目录带播放按钮）
+ *  - 文件浏览：进入/返回式导航（点击目录进入，← 返回 回上层，
+ *    最深层目录的音频列表即播放列表；目录行带 ▶ 播放全部）
  *  - 播放模式切换：音箱 / 浏览器（切换自动停止）
  *  - 循环模式：单曲 🔂 / 顺序 🔁 / 随机 🔀
  *  - 播放控制：暂停/恢复、上一首、下一首、停止、进度条
@@ -13,7 +14,7 @@
   'use strict';
 
   let mode = localStorage.getItem('le_mode') || 'server'; // 默认音箱
-  let playMode = localStorage.getItem('le_playMode') || 'sequential';
+  let playMode = localStorage.getItem('le_playMode') || 'shuffle'; // 默认随机
 
   const fileTreeEl = document.getElementById('fileTree');
   const playerEl = document.getElementById('player');
@@ -81,8 +82,10 @@
 
   // 更新播放器 UI（status 为 null 时隐藏）
   function updatePlayerUI(status) {
+    lastStatus = status || null; // 供文件浏览高亮正在播放的行
     if (!status || status.state === 'idle' || !status.currentFile) {
       playerEl.hidden = true;
+      highlightPlaying();
       return;
     }
     playerEl.hidden = false;
@@ -103,6 +106,8 @@
       progressBarEl.value = Math.min(status.elapsed * 100, 100); // 无时长，按秒走
       timeDisplayEl.textContent = `${formatTime(status.elapsed)} / ${formatTime(status.elapsed)}`;
     }
+
+    highlightPlaying(); // 切歌后高亮跟着走
   }
 
   // ================= 播放 =================
@@ -117,53 +122,150 @@
     }
   }
 
-  // ================= 文件树渲染 =================
-  function renderTree(node) {
-    const ul = document.createElement('ul');
-    ul.className = 'tree';
+  // ================= 文件浏览：进入/返回式导航 =================
+  // 点击目录进入下级，← 返回 回上层；最深层目录的音频列表即播放列表
+  const navStack = [];    // 已进入的目录节点（祖先链，不含当前）
+  let currentNode = null; // 当前显示的目录节点
+  let lastStatus = null;  // 最近一次播放状态（用于高亮正在播放的行）
 
-    for (const child of node.children) {
-      const li = document.createElement('li');
+  function renderCurrentDir() {
+    const node = currentNode;
+    fileTreeEl.replaceChildren();
 
-      if (child.type === 'directory') {
-        li.className = 'tree-item tree-item--dir';
+    // 顶部导航栏：← 返回 + 面包屑（点击可跳回任意上级）
+    const bar = document.createElement('div');
+    bar.className = 'browser-bar';
 
-        const label = document.createElement('div');
-        label.className = 'dir-label';
-        label.textContent = `📁 ${child.name}/`;
-
-        // 目录播放按钮
-        const playBtn = document.createElement('button');
-        playBtn.className = 'dir-play';
-        playBtn.title = `播放 ${child.name} 全部`;
-        playBtn.textContent = '▶';
-        playBtn.addEventListener('click', (e) => {
-          e.stopPropagation(); // 不触发折叠
-          playTarget(child.path);
-        });
-
-        const nested = renderTree(child);
-        nested.hidden = true;
-
-        label.addEventListener('click', () => {
-          nested.hidden = !nested.hidden;
-        });
-
-        const dirHeader = document.createElement('div');
-        dirHeader.className = 'dir-header';
-        dirHeader.append(label, playBtn);
-
-        li.append(dirHeader, nested);
-      } else {
-        li.className = 'tree-item tree-item--file';
-        li.textContent = `🎵 ${child.name}`;
-        li.addEventListener('click', () => playTarget(child.path));
-      }
-
-      ul.append(li);
+    if (navStack.length > 0) {
+      const backBtn = document.createElement('button');
+      backBtn.className = 'back-btn';
+      backBtn.textContent = '← 返回';
+      backBtn.addEventListener('click', goBack);
+      bar.append(backBtn);
     }
 
-    return ul;
+    const crumbs = [...navStack, node];
+    const trail = document.createElement('div');
+    trail.className = 'crumbs';
+    crumbs.forEach((n, i) => {
+      if (i > 0) {
+        const sep = document.createElement('span');
+        sep.className = 'crumb-sep';
+        sep.textContent = '/';
+        trail.append(sep);
+      }
+      const crumb = document.createElement('button');
+      crumb.className = 'crumb' + (i === crumbs.length - 1 ? ' crumb--current' : '');
+      crumb.textContent = i === 0 ? '全部音频' : n.name;
+      if (i < crumbs.length - 1) crumb.addEventListener('click', () => jumpTo(i));
+      trail.append(crumb);
+    });
+    bar.append(trail);
+    fileTreeEl.append(bar);
+
+    const dirs = node.children.filter(c => c.type === 'directory');
+    const files = node.children.filter(c => c.type === 'file');
+    const isLeaf = dirs.length === 0; // 最深层：音频列表即播放列表
+
+    if (dirs.length + files.length === 0) {
+      const p = document.createElement('p');
+      p.className = 'loading';
+      p.textContent = '暂无音频，点右上角 🔄 重新扫描';
+      fileTreeEl.append(p);
+      return;
+    }
+
+    // 目录行：点击整行进入，右侧 ▶ 播放该目录全部音频
+    if (dirs.length > 0) {
+      const h = document.createElement('h2');
+      h.className = 'browser-section';
+      h.textContent = `📁 目录（${dirs.length}）`;
+      fileTreeEl.append(h);
+
+      const ul = document.createElement('ul');
+      ul.className = 'browse';
+      for (const d of dirs) {
+        const li = document.createElement('li');
+        li.className = 'browse-row browse-row--dir';
+
+        const label = document.createElement('span');
+        label.className = 'row-label';
+        label.textContent = `📁 ${d.name}`;
+        li.append(label);
+
+        const playBtn = document.createElement('button');
+        playBtn.className = 'row-play';
+        playBtn.title = `播放 ${d.name} 全部音频`;
+        playBtn.textContent = '▶';
+        playBtn.addEventListener('click', (e) => {
+          e.stopPropagation(); // 只播放，不进入
+          playTarget(d.path);
+        });
+        li.append(playBtn);
+
+        li.addEventListener('click', () => enterDir(d));
+        ul.append(li);
+      }
+      fileTreeEl.append(ul);
+    }
+
+    // 音频行：点击播放；叶子目录时即播放列表
+    if (files.length > 0) {
+      const h = document.createElement('h2');
+      h.className = 'browser-section';
+      h.textContent = isLeaf ? `🎵 播放列表（${files.length}）` : `🎵 音频（${files.length}）`;
+      fileTreeEl.append(h);
+
+      const ul = document.createElement('ul');
+      ul.className = 'browse';
+      for (const f of files) {
+        const li = document.createElement('li');
+        li.className = 'browse-row browse-row--file';
+        li.dataset.path = f.path; // 供「正在播放」高亮定位
+
+        const label = document.createElement('span');
+        label.className = 'row-label';
+        label.textContent = `🎵 ${f.name}`;
+        li.append(label);
+
+        li.addEventListener('click', () => playTarget(f.path));
+        ul.append(li);
+      }
+      fileTreeEl.append(ul);
+    }
+
+    highlightPlaying();
+  }
+
+  /** 进入下一级目录 */
+  function enterDir(dirNode) {
+    navStack.push(currentNode);
+    currentNode = dirNode;
+    renderCurrentDir();
+  }
+
+  /** ← 返回：回到上一层 */
+  function goBack() {
+    if (!navStack.length) return;
+    currentNode = navStack.pop();
+    renderCurrentDir();
+  }
+
+  /** 面包屑跳转到第 level 级（0 = 根目录） */
+  function jumpTo(level) {
+    currentNode = navStack[level];
+    navStack.length = level;
+    renderCurrentDir();
+  }
+
+  /** 高亮当前正在播放的音频行 */
+  function highlightPlaying() {
+    fileTreeEl.querySelectorAll('.browse-row--playing')
+      .forEach(el => el.classList.remove('browse-row--playing'));
+    if (!lastStatus || !lastStatus.currentFile) return;
+    const row = fileTreeEl.querySelector(
+      `.browse-row--file[data-path="${CSS.escape(lastStatus.currentFile)}"]`);
+    if (row) row.classList.add('browse-row--playing');
   }
 
   function showLoading(message) {
@@ -179,8 +281,9 @@
     try {
       const res = await fetch('/api/files');
       const tree = await res.json();
-      fileTreeEl.replaceChildren();
-      fileTreeEl.append(renderTree(tree));
+      navStack.length = 0; // 刷新后回到根目录
+      currentNode = tree;
+      renderCurrentDir();
     } catch (err) {
       showLoading(`加载失败: ${err.message}`);
     }
