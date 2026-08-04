@@ -220,8 +220,13 @@
   document.getElementById('btnNext').addEventListener('click', async () => {
     const res = await api('/api/next', { method: 'POST' });
     if (mode === 'browser' && res.url) {
+      // 正常：拿到下一首 url
       audioEl.src = res.url;
       audioEl.play();
+    } else if (mode === 'browser' && res.state !== 'idle' && res.currentFile) {
+      // 兜底：服务端 outputMode 与前端不同步时，重新拉取当前文件流
+      const p = await api('/api/play', { method: 'POST', body: { path: res.currentFile, mode, playMode } });
+      if (p.url) { audioEl.src = p.url; audioEl.play(); }
     }
     updatePlayerUI(res);
   });

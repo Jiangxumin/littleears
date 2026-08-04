@@ -44,23 +44,33 @@ class PlayerManager {
 
   /**
    * 开始播放队列
-   * @param {string[]} queue 相对路径数组（单曲 = [file]，目录 = 展开全部）
+   * @param {string[]} queue 相对路径数组（目录展开全部；单文件 = 同目录全部）
    * @param {string} outputMode server | browser
+   * @param {number} startIndex 起始位置（单文件播放时指向点击的文件）
    */
-  startQueue(queue, outputMode) {
+  startQueue(queue, outputMode, startIndex = 0) {
     if (!queue.length) return;
     this.queue = [...queue];
     this.index = 0;
     this.playedSet = new Set();
     this.outputMode = outputMode;
-    this._playAt(0);
+    this._playAt(Math.min(startIndex, queue.length - 1));
   }
 
   /** 手动下一首（也供浏览器模式结束后调用） */
   next() {
     if (this.state === STATE.IDLE) return { ok: false, error: '未在播放' };
-    this._advance();
-    // 广播 ok 标记 + 完整状态（_advance 可能 stop 导致 idle）
+    // 手动切歌与自动播完语义不同：
+    //  - 自动播完(onEnded) → 队尾即停（spec 设计）
+    //  - 手动 next → 队尾循环回第一首，进度框不消失
+    if (this.playMode === PLAY_MODE.SEQUENTIAL && this.index + 1 >= this.queue.length) {
+      this._playAt(0); // 顺序模式队尾 → 回第一首
+    } else if (this.playMode === PLAY_MODE.SHUFFLE) {
+      if (this.playedSet.size >= this.queue.length) this.playedSet.clear(); // 播完一轮重置
+      this._advanceShuffle();
+    } else {
+      this._advance(); // single：重播同一首
+    }
     return { ok: true, ...this._status() };
   }
 

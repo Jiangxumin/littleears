@@ -42,10 +42,15 @@ router.post('/play', (req, res) => {
 
   // 收集播放队列
   let queue;
+  let startIndex = 0;
   if (path.extname(relPath)) {
-    // 文件：单曲
+    // 文件：单曲。队列 = 同目录全部音频，起始 = 当前文件
+    // 这样「下一首」只在当前目录内切换（不跨目录），到队尾循环回第一首
     if (!scanner.isAudioFile(abs)) return res.status(400).json({ error: '不支持的音频格式' });
-    queue = [relPath];
+    const dirRel = path.dirname(relPath);
+    queue = scanner.collectDirAudio(dirRel);
+    startIndex = queue.indexOf(relPath);
+    if (startIndex === -1) { queue = [relPath]; startIndex = 0; } // 兜底：目录扫描失败则单曲
   } else {
     // 目录：递归收集
     queue = scanner.collectDirAudio(relPath);
@@ -53,12 +58,12 @@ router.post('/play', (req, res) => {
   }
 
   if (playMode) playerManager.setPlayMode(playMode);
-  playerManager.startQueue(queue, mode || 'server');
+  playerManager.startQueue(queue, mode || 'server', startIndex);
 
   // 统一返回 { ok, ...status }，浏览器模式附 url
   const resp = { ok: true, ...playerManager.getStatus() };
   if (mode === 'browser') {
-    resp.url = playerBrowser.streamUrl(queue[0]);
+    resp.url = playerBrowser.streamUrl(queue[startIndex]);
   }
   res.json(resp);
 });
