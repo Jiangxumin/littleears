@@ -1,0 +1,146 @@
+/* LittleEars 样式 — 简洁、圆润、适合儿童氛围 */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: #fdf6ec;
+  color: #4a3f35;
+  min-height: 100vh;
+}
+
+/* ---------- 顶栏 ---------- */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px 24px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(74, 63, 53, 0.08);
+}
+
+.logo {
+  font-size: 1.4rem;
+  color: #e07a5f;
+}
+
+.mode-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mode-switch__label {
+  font-size: 0.9rem;
+  color: #8a7f72;
+}
+
+.mode-btn {
+  padding: 6px 16px;
+  border: 2px solid #e0d5c6;
+  border-radius: 20px;
+  background: #fff;
+  color: #4a3f35;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.mode-btn.active {
+  background: #e07a5f;
+  border-color: #e07a5f;
+  color: #fff;
+}
+
+/* ---------- 播放状态栏 ---------- */
+.now-playing {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 24px;
+  padding: 12px 18px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(74, 63, 53, 0.06);
+}
+
+.now-playing__icon {
+  font-size: 1.1rem;
+}
+
+.now-playing__name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- 文件树 ---------- */
+.content {
+  padding: 0 24px 32px;
+}
+
+.file-tree {
+  background: #fff;
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 2px 8px rgba(74, 63, 53, 0.06);
+}
+
+.loading {
+  padding: 16px;
+  color: #8a7f72;
+}
+
+.tree {
+  list-style: none;
+}
+
+.tree ul {
+  list-style: none;
+  margin-left: 18px;
+  border-left: 2px solid #f0e7da;
+  padding-left: 10px;
+}
+
+.tree-item {
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+  font-size: 0.95rem;
+}
+
+.tree-item:hover {
+  background: #f7efe3;
+}
+
+.tree-item--file:active {
+  background: #ffe8df;
+}
+
+.dir-label {
+  font-weight: 600;
+  color: #5d5244;
+}
+
+/* ---------- 移动端适配 ---------- */
+@media (max-width: 600px) {
+  .topbar {
+    padding: 12px 16px;
+  }
+  .content,
+  .now-playing {
+    margin-left: 12px;
+    margin-right: 12px;
+  }
+  .content {
+    padding-bottom: 24px;
+  }
+}

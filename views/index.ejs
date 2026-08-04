@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1 class="logo">🎧 LittleEars</h1>
+
+    <!-- 播放模式切换：音箱 / 浏览器 -->
+    <div class="mode-switch" id="modeSwitch">
+      <span class="mode-switch__label">播放到：</span>
+      <button class="mode-btn" data-mode="server">🔊 音箱</button>
+      <button class="mode-btn" data-mode="browser">📱 浏览器</button>
+    </div>
+  </header>
+
+  <main class="content">
+    <!-- 播放状态栏（M2 完整实现，M1 先占位） -->
+    <section class="now-playing" id="nowPlaying" hidden>
+      <span class="now-playing__icon">▶</span>
+      <span class="now-playing__name" id="nowPlayingName">-</span>
+    </section>
+
+    <!-- 音频文件树 -->
+    <section class="file-tree" id="fileTree">
+      <p class="loading">加载中…</p>
+    </section>
+  </main>
+
+  <!-- 浏览器模式使用的隐藏 audio 元素 -->
+  <audio id="audio" preload="none"></audio>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>
