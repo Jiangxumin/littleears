@@ -19,8 +19,11 @@ module.exports = {
   password: process.env.LITTLEEARS_PASSWORD || '',
 
   // 音箱播放工具：mpg123 负责 MP3，ffplay 负责其他格式
+  // 注意：-a hw:CARD=Headphones 直连耳机声卡，绕开 PulseAudio——
+  // systemd 服务环境没有 XDG_RUNTIME_DIR，连不上 PulseAudio 会退回
+  // 默认声卡（card0=HDMI，未接显示器）导致无声。按卡名指定不受卡号变动影响。
   player: {
-    mp3: { command: 'mpg123', args: ['-q'] },
+    mp3: { command: 'mpg123', args: ['-q', '-a', 'hw:CARD=Headphones'] },
     other: { command: 'ffplay', args: ['-nodisp', '-autoexit', '-loglevel', 'quiet'] },
   },
 };
