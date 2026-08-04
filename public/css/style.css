@@ -58,27 +58,110 @@ body {
   color: #fff;
 }
 
-/* ---------- 播放状态栏 ---------- */
-.now-playing {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+/* ---------- 播放器控制栏 ---------- */
+.player {
   margin: 16px 24px;
-  padding: 12px 18px;
+  padding: 16px 18px;
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(74, 63, 53, 0.06);
 }
 
-.now-playing__icon {
+.player__now {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.player__icon {
   font-size: 1.1rem;
 }
 
-.now-playing__name {
+.player__name {
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
+}
+
+.player__count {
+  color: #8a7f72;
+  font-size: 0.85rem;
+}
+
+.player__progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+#progressBar {
+  flex: 1;
+  accent-color: #e07a5f;
+}
+
+.player__time {
+  font-size: 0.8rem;
+  color: #8a7f72;
+  white-space: nowrap;
+}
+
+.player__controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.ctrl-btn {
+  width: 42px;
+  height: 42px;
+  border: none;
+  border-radius: 50%;
+  background: #f7efe3;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.ctrl-btn:hover { background: #ffe8df; }
+.ctrl-btn:active { transform: scale(0.92); }
+
+.ctrl-btn--big {
+  width: 52px;
+  height: 52px;
+  background: #e07a5f;
+  color: #fff;
+  font-size: 1.3rem;
+}
+
+.ctrl-btn--big:hover { background: #d96f52; }
+
+.player__modes {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.mode2-btn {
+  width: 40px;
+  height: 36px;
+  border: 2px solid #e0d5c6;
+  border-radius: 18px;
+  background: #fff;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.mode2-btn.active {
+  background: #e07a5f;
+  border-color: #e07a5f;
+  box-shadow: 0 2px 6px rgba(224, 122, 95, 0.4);
 }
 
 /* ---------- 文件树 ---------- */
@@ -125,10 +208,40 @@ body {
   background: #ffe8df;
 }
 
+.dir-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-radius: 8px;
+  padding-right: 8px;
+}
+
+.dir-header:hover {
+  background: #f7efe3;
+}
+
 .dir-label {
   font-weight: 600;
   color: #5d5244;
+  flex: 1;
+  padding: 8px 10px;
 }
+
+.dir-play {
+  border: none;
+  background: #e07a5f;
+  color: #fff;
+  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+
+.dir-play:hover { background: #d96f52; }
+.dir-play:active { transform: scale(0.9); }
 
 /* ---------- 移动端适配 ---------- */
 @media (max-width: 600px) {

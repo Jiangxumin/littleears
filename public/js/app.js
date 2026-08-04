@@ -1,49 +1,50 @@
 /**
- * app.js — 前端交互逻辑
+ * app.js — 前端交互逻辑（M2）
  *
- * M1 功能：
- *  - 加载并渲染文件树（可折叠目录）
- *  - 切换播放模式：音箱 / 浏览器
- *  - 点击音频文件播放
+ * 功能：
+ *  - 文件树渲染（可折叠，目录带播放按钮）
+ *  - 播放模式切换：音箱 / 浏览器（切换自动停止）
+ *  - 循环模式：单曲 🔂 / 顺序 🔁 / 随机 🔀
+ *  - 播放控制：暂停/恢复、上一首、下一首、停止、进度条
+ *  - 浏览器模式：<audio> 播放，ended 自动下一首
+ *  - 音箱模式：轮询 /api/status 同步状态
  */
 (() => {
   'use strict';
 
-  // 默认音箱播放：磨耳朵主场景是「音箱出声」，浏览器是辅助
-  let mode = localStorage.getItem('le_mode') || 'server';
+  let mode = localStorage.getItem('le_mode') || 'server'; // 默认音箱
+  let playMode = localStorage.getItem('le_playMode') || 'sequential';
 
   const fileTreeEl = document.getElementById('fileTree');
+  const playerEl = document.getElementById('player');
+  const playerIconEl = document.getElementById('playerIcon');
+  const playerNameEl = document.getElementById('playerName');
+  const playerCountEl = document.getElementById('playerCount');
+  const progressBarEl = document.getElementById('progressBar');
+  const timeDisplayEl = document.getElementById('timeDisplay');
   const audioEl = document.getElementById('audio');
-  const nowPlayingEl = document.getElementById('nowPlaying');
-  const nowPlayingNameEl = document.getElementById('nowPlayingName');
 
-  // ---------- 播放模式切换 ----------
-  // 切换时停止旧播放：旧模式的声音必须立即关闭，否则两个声音同时响
-  async function stopCurrentPlayback() {
-    // 无论当前是哪种模式，两端都清一遍（幂等）
-    audioEl.pause();
-    audioEl.removeAttribute('src');
-    audioEl.load();
-    try {
-      await fetch('/api/stop', { method: 'POST' });
-    } catch (e) {
-      /* 网络失败忽略 */
-    }
-  }
+  // method 显式指定：GET 不传 body，POST 传对象
+  const api = (path, { method = 'GET', body } = {}) => fetch(path, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
+  }).then(r => r.json());
 
-  // 同步按钮高亮（初始化时也要调用，不触发停止）
+  // ================= 播放模式切换 =================
   function syncModeUI() {
     document.querySelectorAll('.mode-btn').forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.mode === mode);
     });
   }
 
-  function setMode(newMode) {
-    if (newMode === mode) return; // 同模式切换无需处理
+  async function setMode(newMode) {
+    if (newMode === mode) return;
     mode = newMode;
     localStorage.setItem('le_mode', newMode);
     syncModeUI();
-    stopCurrentPlayback(); // 切模式 → 停止之前的声音
+    await api('/api/stop', { method: 'POST' }); // 切换 → 停止旧播放
+    updatePlayerUI(null);
   }
 
   document.getElementById('modeSwitch').addEventListener('click', (e) => {
@@ -51,45 +52,73 @@
     if (btn) setMode(btn.dataset.mode);
   });
 
-  // ---------- 播放 ----------
-  async function playFile(relPath) {
-    const name = relPath.split('/').pop();
-    setNowPlaying(`▶ ${name}`);
+  // ================= 循环模式 =================
+  function syncPlayModeUI() {
+    document.querySelectorAll('.mode2-btn').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.playmode === playMode);
+    });
+  }
 
-    if (mode === 'server') {
-      // 音箱模式：告诉后端去播，浏览器这边保持静默
-      const res = await fetch('/api/play', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filePath: relPath, mode: 'server' }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setNowPlaying(`❌ ${data.error || '播放失败'}`);
-      }
-    } else {
-      // 浏览器模式：后端返回流 URL，交给 <audio> 播放
-      const res = await fetch('/api/play', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filePath: relPath, mode: 'browser' }),
-      });
-      const data = await res.json();
-      if (data.url) {
-        audioEl.src = data.url;
-        audioEl.play();
-      }
+  async function setPlayMode(newMode) {
+    playMode = newMode;
+    localStorage.setItem('le_playMode', newMode);
+    syncPlayModeUI();
+    await api('/api/playMode', { method: 'POST', body: { playMode: newMode } });
+  }
+
+  document.querySelector('.player__modes').addEventListener('click', (e) => {
+    const btn = e.target.closest('.mode2-btn');
+    if (btn) setPlayMode(btn.dataset.playmode);
+  });
+
+  // ================= 播放控制 =================
+  function formatTime(sec) {
+    if (!isFinite(sec) || sec < 0) return '0:00';
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m}:${String(s).padStart(2, '0')}`;
+  }
+
+  // 更新播放器 UI（status 为 null 时隐藏）
+  function updatePlayerUI(status) {
+    if (!status || status.state === 'idle' || !status.currentFile) {
+      playerEl.hidden = true;
+      return;
+    }
+    playerEl.hidden = false;
+    const name = status.currentFile.split('/').pop();
+    playerNameEl.textContent = name;
+    playerCountEl.textContent = `${status.currentIndex + 1}/${status.queueLength}`;
+
+    const isPlaying = status.state === 'playing';
+    playerIconEl.textContent = isPlaying ? '▶' : '⏸';
+    document.getElementById('btnPause').textContent = isPlaying ? '⏸' : '▶';
+
+    // 进度（browser 模式用 audio 自身时间，server 模式用轮询到的 elapsed）
+    if (mode === 'browser' && audioEl.duration) {
+      const cur = audioEl.currentTime;
+      progressBarEl.value = (cur / audioEl.duration) * 100;
+      timeDisplayEl.textContent = `${formatTime(cur)} / ${formatTime(audioEl.duration)}`;
+    } else if (status.elapsed != null) {
+      progressBarEl.value = Math.min(status.elapsed * 100, 100); // 无时长，按秒走
+      timeDisplayEl.textContent = `${formatTime(status.elapsed)} / ${formatTime(status.elapsed)}`;
     }
   }
 
-  function setNowPlaying(text) {
-    nowPlayingEl.hidden = false;
-    nowPlayingNameEl.textContent = text;
+  // ================= 播放 =================
+  async function playTarget(relPath) {
+    const res = await api('/api/play', { method: 'POST', body: { path: relPath, mode, playMode } });
+    if (res.error) { console.error('播放失败:', res.error); return; }
+    updatePlayerUI(res);
+
+    if (mode === 'browser' && res.url) {
+      audioEl.src = res.url;
+      audioEl.play();
+    }
   }
 
-  // ---------- 文件树渲染 ----------
-  // 递归把 JSON 树渲染成可折叠的 <ul>/<li> 列表
-  function renderTree(node, isRoot) {
+  // ================= 文件树渲染 =================
+  function renderTree(node) {
     const ul = document.createElement('ul');
     ul.className = 'tree';
 
@@ -97,26 +126,38 @@
       const li = document.createElement('li');
 
       if (child.type === 'directory') {
-        // 目录：可折叠，点击标题展开/收起
         li.className = 'tree-item tree-item--dir';
 
         const label = document.createElement('div');
         label.className = 'dir-label';
         label.textContent = `📁 ${child.name}/`;
 
-        const nested = renderTree(child, false);
-        nested.hidden = true; // 默认收起
+        // 目录播放按钮
+        const playBtn = document.createElement('button');
+        playBtn.className = 'dir-play';
+        playBtn.title = `播放 ${child.name} 全部`;
+        playBtn.textContent = '▶';
+        playBtn.addEventListener('click', (e) => {
+          e.stopPropagation(); // 不触发折叠
+          playTarget(child.path);
+        });
+
+        const nested = renderTree(child);
+        nested.hidden = true;
 
         label.addEventListener('click', () => {
           nested.hidden = !nested.hidden;
         });
 
-        li.append(label, nested);
+        const dirHeader = document.createElement('div');
+        dirHeader.className = 'dir-header';
+        dirHeader.append(label, playBtn);
+
+        li.append(dirHeader, nested);
       } else {
-        // 文件：点击播放
         li.className = 'tree-item tree-item--file';
         li.textContent = `🎵 ${child.name}`;
-        li.addEventListener('click', () => playFile(child.path));
+        li.addEventListener('click', () => playTarget(child.path));
       }
 
       ul.append(li);
@@ -125,9 +166,8 @@
     return ul;
   }
 
-  // 用 textContent 安全地设置提示文字（避免 XSS）
   function showLoading(message) {
-    fileTreeEl.replaceChildren(); // 清空所有子节点
+    fileTreeEl.replaceChildren();
     const p = document.createElement('p');
     p.className = 'loading';
     p.textContent = message;
@@ -140,13 +180,85 @@
       const res = await fetch('/api/files');
       const tree = await res.json();
       fileTreeEl.replaceChildren();
-      fileTreeEl.append(renderTree(tree, true));
+      fileTreeEl.append(renderTree(tree));
     } catch (err) {
       showLoading(`加载失败: ${err.message}`);
     }
   }
 
-  // ---------- 初始化 ----------
-  syncModeUI(); // 只同步按钮高亮，不触发停止（页面加载时没有在播放）
+  // ================= 浏览器模式 <audio> 事件 =================
+  audioEl.addEventListener('timeupdate', () => {
+    if (mode === 'browser' && audioEl.duration) {
+      progressBarEl.value = (audioEl.currentTime / audioEl.duration) * 100;
+      timeDisplayEl.textContent = `${formatTime(audioEl.currentTime)} / ${formatTime(audioEl.duration)}`;
+    }
+  });
+
+  // 播完自动下一首
+  audioEl.addEventListener('ended', async () => {
+    const res = await api('/api/next', { method: 'POST' });
+    if (res.url) {
+      audioEl.src = res.url;
+      audioEl.play();
+      updatePlayerUI(res);
+    } else {
+      updatePlayerUI(null); // 队列播完
+    }
+  });
+
+  // ================= 控制按钮 =================
+  document.getElementById('btnPause').addEventListener('click', async () => {
+    if (mode === 'browser') {
+      // 浏览器：直接控制 audio
+      if (audioEl.paused) audioEl.play(); else audioEl.pause();
+    } else {
+      const res = await api('/api/pause', { method: 'POST' });
+      updatePlayerUI(res);
+    }
+  });
+
+  document.getElementById('btnNext').addEventListener('click', async () => {
+    const res = await api('/api/next', { method: 'POST' });
+    if (mode === 'browser' && res.url) {
+      audioEl.src = res.url;
+      audioEl.play();
+    }
+    updatePlayerUI(res);
+  });
+
+  document.getElementById('btnPrev').addEventListener('click', async () => {
+    // 简单实现：回到上一首（M2 简化，跳回队列前一个）
+    const s = await api('/api/status');
+    if (s.currentIndex > 0) {
+      const res = await api('/api/play', { method: 'POST', body: { path: s.currentFile, mode, playMode } });
+      updatePlayerUI(res);
+    }
+  });
+
+  document.getElementById('btnStop').addEventListener('click', async () => {
+    await api('/api/stop', { method: 'POST' });
+    audioEl.pause();
+    audioEl.removeAttribute('src');
+    updatePlayerUI(null);
+  });
+
+  // 进度条拖动（浏览器模式）
+  progressBarEl.addEventListener('input', () => {
+    if (mode === 'browser' && audioEl.duration) {
+      audioEl.currentTime = (progressBarEl.value / 100) * audioEl.duration;
+    }
+  });
+
+  // ================= 音箱模式轮询 =================
+  setInterval(async () => {
+    if (mode === 'server') {
+      const status = await api('/api/status'); // GET，不传 body
+      updatePlayerUI(status);
+    }
+  }, 2000);
+
+  // ================= 初始化 =================
+  syncModeUI();
+  syncPlayModeUI();
   loadTree();
 })();

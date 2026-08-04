@@ -1,9 +1,14 @@
 /**
- * api.js — API 路由
+ * api.js — API 路由（M2 版本）
  *
- * M1 提供两个端点：
- *  - GET  /api/files  文件树
- *  - POST /api/play   播放 { filePath, mode }
+ * 端点：
+ *  GET  /api/files     文件树
+ *  POST /api/play      播放 { path, mode, playMode }，path 可为文件或目录
+ *  POST /api/next      下一首（浏览器模式 ended 后也调这个）
+ *  POST /api/pause     暂停 / 恢复
+ *  POST /api/stop      停止
+ *  POST /api/playMode  设置循环模式 { playMode }
+ *  GET  /api/status    当前播放状态
  */
 const express = require('express');
 const path = require('path');
@@ -12,6 +17,7 @@ const config = require('../config');
 const scanner = require('../services/scanner');
 const playerServer = require('../services/player-server');
 const playerBrowser = require('../services/player-browser');
+const playerManager = require('../services/player-manager');
 
 const router = express.Router();
 
@@ -20,36 +26,78 @@ router.get('/files', (req, res) => {
   res.json(scanner.getTree());
 });
 
-/** 停止音箱播放 */
+/**
+ * 播放：path 可以是文件或目录
+ *  - 文件 → 单曲队列
+ *  - 目录 → 递归收集全部音频
+ * mode 为 server（音箱）或 browser（浏览器）
+ */
+router.post('/play', (req, res) => {
+  const { path: relPath, mode, playMode } = req.body || {};
+  if (!relPath) return res.status(400).json({ error: '缺少 path' });
+
+  // 路径安全校验
+  const abs = scanner.toAbsPath(relPath);
+  if (!abs) return res.status(400).json({ error: '非法路径' });
+
+  // 收集播放队列
+  let queue;
+  if (path.extname(relPath)) {
+    // 文件：单曲
+    if (!scanner.isAudioFile(abs)) return res.status(400).json({ error: '不支持的音频格式' });
+    queue = [relPath];
+  } else {
+    // 目录：递归收集
+    queue = scanner.collectDirAudio(relPath);
+    if (!queue.length) return res.status(400).json({ error: '目录中没有音频' });
+  }
+
+  if (playMode) playerManager.setPlayMode(playMode);
+  playerManager.startQueue(queue, mode || 'server');
+
+  // 统一返回 { ok, ...status }，浏览器模式附 url
+  const resp = { ok: true, ...playerManager.getStatus() };
+  if (mode === 'browser') {
+    resp.url = playerBrowser.streamUrl(queue[0]);
+  }
+  res.json(resp);
+});
+
+/** 下一首（手动切歌 / 浏览器模式 ended 后） */
+router.post('/next', (req, res) => {
+  const result = playerManager.next();
+  if (!result.ok) return res.status(400).json(result);
+
+  // 浏览器模式需要返回下一首 URL
+  if (result.outputMode === 'browser' && result.currentFile) {
+    result.url = playerBrowser.streamUrl(result.currentFile);
+  }
+  res.json(result);
+});
+
+/** 暂停 / 恢复 */
+router.post('/pause', (req, res) => {
+  const result = playerManager.togglePause();
+  res.json({ ...result, ...playerManager.getStatus() });
+});
+
+/** 停止 */
 router.post('/stop', (req, res) => {
-  playerServer.stop();
+  playerManager.stop();
   res.json({ ok: true });
 });
 
-/** 播放音频 */
-router.post('/play', (req, res) => {
-  const { filePath, mode } = req.body || {};
-  if (!filePath) return res.status(400).json({ error: '缺少 filePath' });
+/** 设置循环模式 */
+router.post('/playMode', (req, res) => {
+  const { playMode } = req.body || {};
+  if (!playMode) return res.status(400).json({ error: '缺少 playMode' });
+  playerManager.setPlayMode(playMode);
+  res.json({ ok: true, playMode: playerManager.playMode });
+});
 
-  // 安全校验：解析后的绝对路径必须位于 mediaRoot 内，防止路径穿越
-  const abs = path.resolve(config.mediaRoot, filePath);
-  if (!abs.startsWith(config.mediaRoot + path.sep)) {
-    return res.status(400).json({ error: '非法路径' });
-  }
-  if (!scanner.isAudioFile(abs)) {
-    return res.status(400).json({ error: '不支持的音频格式' });
-  }
-
-  if (mode === 'server') {
-    playerServer.play(abs, () => {
-      // M1: 播放自然结束后回到空闲（M2 将加入循环模式）
-      console.log('  播放结束');
-    });
-    res.json({ ok: true, mode: 'server' });
-  } else {
-    // mode === 'browser'：后端只返回流 URL，播放由前端 <audio> 完成
-    res.json({ ok: true, mode: 'browser', url: playerBrowser.streamUrl(filePath) });
-  }
+/** 播放状态 */
+router.get('/status', (req, res) => {
+  res.json(playerManager.getStatus());
 });
 
 module.exports = router;

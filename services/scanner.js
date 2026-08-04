@@ -99,4 +99,35 @@ function refresh() {
   return cache;
 }
 
-module.exports = { getTree, refresh, isAudioFile };
+/** 相对路径 → 绝对路径（校验在 mediaRoot 内） */
+function toAbsPath(relPath) {
+  const abs = path.resolve(config.mediaRoot, relPath);
+  if (!abs.startsWith(config.mediaRoot + path.sep)) return null;
+  return abs;
+}
+
+/**
+ * 递归收集目录下所有音频文件的相对路径（自然排序）
+ * 用于「目录级播放」：点击目录 → 展开全部音频 → 生成播放队列
+ * @param {string} relDir 相对 mediaRoot 的目录路径
+ */
+function collectDirAudio(relDir) {
+  const abs = toAbsPath(relDir);
+  if (!abs || !fs.statSync(abs).isDirectory()) return [];
+  const files = [];
+  const walk = (dir, rel) => {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const e of entries) {
+      if (e.name.startsWith('.')) continue;
+      const childAbs = path.join(dir, e.name);
+      const childRel = path.join(rel, e.name);
+      if (e.isDirectory()) walk(childAbs, childRel);
+      else if (isAudioFile(e.name)) files.push(childRel);
+    }
+  };
+  walk(abs, relDir);
+  files.sort(compareNatural);
+  return files;
+}
+
+module.exports = { getTree, refresh, isAudioFile, toAbsPath, collectDirAudio, compareNatural };

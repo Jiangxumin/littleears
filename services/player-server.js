@@ -91,9 +91,11 @@ async function play(filePath, onEnd) {
   });
 
   proc.on('exit', (code, signal) => {
-    // 只有当前代际的进程才清除 proc，避免误清新播放
-    if (gen === playGen) proc = null;
+    // 代际校验：旧进程的 exit 事件（被 killCurrent 杀掉的）不应触发任何逻辑
+    if (gen !== playGen) return;
+    proc = null;
     // 只有「自然退出」（非我们主动 kill）才视为播放结束
+    // mpg123 收到 SIGTERM 可能优雅退出(signal=null,code=0)，必须用代际号兜底
     const stoppedByUs = signal === 'SIGTERM' || signal === 'SIGKILL';
     if (!stoppedByUs && onEnd) onEnd();
   });
@@ -122,9 +124,28 @@ function killCurrent() {
   }
 }
 
+/**
+ * 暂停播放：SIGSTOP 挂起进程（不终止，进度保留）
+ * mpg123/ffplay 不支持命令内暂停，但 POSIX 信号可挂起任何进程
+ */
+function pause() {
+  if (proc) {
+    proc.kill('SIGSTOP');
+    console.log('⏸ 音箱暂停');
+  }
+}
+
+/** 恢复播放：SIGCONT 继续被挂起的进程 */
+function resume() {
+  if (proc) {
+    proc.kill('SIGCONT');
+    console.log('▶ 音箱恢复');
+  }
+}
+
 /** 当前是否有播放进程 */
 function isPlaying() {
   return proc !== null;
 }
 
-module.exports = { play, stop, isPlaying };
+module.exports = { play, stop, pause, resume, isPlaying };

@@ -20,10 +20,34 @@
   </header>
 
   <main class="content">
-    <!-- 播放状态栏（M2 完整实现，M1 先占位） -->
-    <section class="now-playing" id="nowPlaying" hidden>
-      <span class="now-playing__icon">▶</span>
-      <span class="now-playing__name" id="nowPlayingName">-</span>
+    <!-- 播放状态 + 控制栏 -->
+    <section class="player" id="player" hidden>
+      <div class="player__now">
+        <span class="player__icon" id="playerIcon">▶</span>
+        <span class="player__name" id="playerName">-</span>
+        <span class="player__count" id="playerCount">0/0</span>
+      </div>
+
+      <!-- 进度条 -->
+      <div class="player__progress">
+        <input type="range" id="progressBar" min="0" max="100" value="0" step="0.1" disabled>
+        <span class="player__time" id="timeDisplay">0:00 / 0:00</span>
+      </div>
+
+      <!-- 控制按钮 -->
+      <div class="player__controls">
+        <button class="ctrl-btn" id="btnPrev" title="上一首">⏮</button>
+        <button class="ctrl-btn ctrl-btn--big" id="btnPause" title="暂停/播放">⏸</button>
+        <button class="ctrl-btn" id="btnNext" title="下一首">⏭</button>
+        <button class="ctrl-btn" id="btnStop" title="停止">⏹</button>
+      </div>
+
+      <!-- 循环模式 -->
+      <div class="player__modes">
+        <button class="mode2-btn" data-playmode="single" title="单曲循环">🔂</button>
+        <button class="mode2-btn" data-playmode="sequential" title="顺序播放">🔁</button>
+        <button class="mode2-btn" data-playmode="shuffle" title="随机播放">🔀</button>
+      </div>
     </section>
 
     <!-- 音频文件树 -->
