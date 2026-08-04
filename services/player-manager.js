@@ -115,6 +115,19 @@ class PlayerManager {
     return this._status();
   }
 
+  /** 当前音箱音量（0-100） */
+  getVolume() {
+    return playerServer.getVolume();
+  }
+
+  /**
+   * 设置音箱音量（0-100），立即重启当前曲
+   * @returns {number} 生效后的实际音量
+   */
+  setVolume(v) {
+    return playerServer.setVolume(v);
+  }
+
   // ---------- 内部逻辑 ----------
 
   /** 播放队列第 index 首 */
@@ -192,6 +205,7 @@ class PlayerManager {
       currentIndex: this.index,
       queueLength: this.queue.length,
       elapsed: this.state === STATE.PLAYING ? this._elapsedSeconds() : this.pausedElapsed,
+      volume: playerServer.getVolume(),
     };
   }
 }

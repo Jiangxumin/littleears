@@ -49,6 +49,13 @@
         <button class="ctrl-btn" id="btnStop" title="停止">⏹</button>
       </div>
 
+      <!-- 音量（仅音箱模式显示） -->
+      <div class="player__volume" id="volumeBar" hidden>
+        <span class="volume-icon">🔉</span>
+        <input type="range" id="volumeSlider" min="0" max="100" step="1" value="80">
+        <span class="volume-value" id="volumeValue">80</span>
+      </div>
+
       <!-- 循环模式 -->
       <div class="player__modes">
         <button class="mode2-btn" data-playmode="single" title="单曲循环">🔂</button>
@@ -66,7 +73,7 @@
   <!-- 浏览器模式使用的隐藏 audio 元素 -->
   <audio id="audio" preload="none"></audio>
 
-  <!-- v=20260805 缓存版本号：代码更新后需手动递增，强制浏览器拉新 -->
-  <script src="/js/app.js?v=20260805"></script>
+  <!-- v=20260806 缓存版本号：代码更新后需手动递增，强制浏览器拉新 -->
+  <script src="/js/app.js?v=20260806"></script>
 </body>
 </html>

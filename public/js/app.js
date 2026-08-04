@@ -24,6 +24,9 @@
   const progressBarEl = document.getElementById('progressBar');
   const timeDisplayEl = document.getElementById('timeDisplay');
   const audioEl = document.getElementById('audio');
+  const volumeBarEl = document.getElementById('volumeBar');
+  const volumeSliderEl = document.getElementById('volumeSlider');
+  const volumeValueEl = document.getElementById('volumeValue');
 
   // method 显式指定：GET 不传 body，POST 传对象
   const api = (path, { method = 'GET', body } = {}) => fetch(path, {
@@ -46,6 +49,7 @@
     syncModeUI();
     await api('/api/stop', { method: 'POST' }); // 切换 → 停止旧播放
     updatePlayerUI(null);
+    syncVolumeUI(); // 音量条只对音箱模式有意义
   }
 
   document.getElementById('modeSwitch').addEventListener('click', (e) => {
@@ -108,7 +112,26 @@
     }
 
     highlightPlaying(); // 切歌后高亮跟着走
+
+    // 同步音量条（status 带 volume；无则保持现值）
+    if (typeof status.volume === 'number') {
+      volumeSliderEl.value = status.volume;
+      volumeValueEl.textContent = status.volume;
+    }
   }
+
+  // ================= 音量（仅音箱模式） =================
+  function syncVolumeUI() {
+    volumeBarEl.hidden = mode !== 'server';
+  }
+
+  // 拖动滑条：实时调服务端音量（当前曲以新音量重启）
+  volumeSliderEl.addEventListener('input', async () => {
+    const v = Number(volumeSliderEl.value);
+    volumeValueEl.textContent = v;
+    const res = await api('/api/volume', { method: 'POST', body: { volume: v } });
+    if (res && typeof res.volume === 'number') volumeValueEl.textContent = res.volume;
+  });
 
   // ================= 播放 =================
   async function playTarget(relPath) {
@@ -406,5 +429,6 @@
   // ================= 初始化 =================
   syncModeUI();
   syncPlayModeUI();
+  syncVolumeUI();
   loadTree();
 })();

@@ -117,4 +117,14 @@ router.get('/status', (req, res) => {
   res.json(playerManager.getStatus());
 });
 
+/** 设置音箱音量 { volume: 0-100 }（立即重启当前曲生效） */
+router.post('/volume', (req, res) => {
+  const { volume } = req.body || {};
+  if (typeof volume !== 'number' || isNaN(volume)) {
+    return res.status(400).json({ error: '缺少有效的 volume' });
+  }
+  const applied = playerManager.setVolume(volume);
+  res.json({ ok: true, volume: applied });
+});
+
 module.exports = router;

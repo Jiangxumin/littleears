@@ -116,6 +116,31 @@ body {
   margin-top: 12px;
 }
 
+/* 音量条（仅音箱模式显示） */
+.player__volume {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.volume-icon {
+  font-size: 0.95rem;
+}
+
+#volumeSlider {
+  flex: 1;
+  accent-color: #e07a5f;
+}
+
+.volume-value {
+  font-size: 0.8rem;
+  color: #8a7f72;
+  min-width: 2.2em;
+  text-align: right;
+  white-space: nowrap;
+}
+
 .ctrl-btn {
   width: 42px;
   height: 42px;

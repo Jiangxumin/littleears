@@ -12,10 +12,66 @@
  */
 const { spawn, execFileSync } = require('child_process');
 const path = require('path');
+const fs = require('fs');
 const config = require('../config');
 
 let proc = null; // 当前播放子进程
 let playGen = 0; // 播放代际号：解决快速连点时的异步竞态
+let volume = loadVolume(); // 当前音箱音量（0-100）
+
+/** 从持久化文件加载音量；无文件/损坏时用默认值 */
+function loadVolume() {
+  try {
+    const v = JSON.parse(fs.readFileSync(config.volume.file, 'utf8')).volume;
+    if (typeof v === 'number' && v >= config.volume.min && v <= config.volume.max) return v;
+  } catch (e) { /* 文件不存在或损坏 → 用默认 */ }
+  return config.volume.default;
+}
+
+/** 保存音量到持久化文件（静默失败，不因磁盘问题影响播放） */
+function saveVolume(v) {
+  try {
+    fs.mkdirSync(path.dirname(config.volume.file), { recursive: true });
+    fs.writeFileSync(config.volume.file, JSON.stringify({ volume: v }));
+  } catch (e) {
+    console.error(`⚠️ 音量持久化失败: ${e.message}`);
+  }
+}
+
+/**
+ * 平台相关音量控制：
+ *  - arm/arm64（树莓派板载 3.5mm，无混音器）→ 应用内 --scale/-volume（调音量需重启当前曲）
+ *  - x86 等有 PulseAudio 的桌面 → pactl 系统音量（即时生效，不重启进程）
+ */
+const PLATFORM_VOLUME_PACTL = ['x64', 'x32', 'ia32'];
+
+function isPactlVolume() {
+  return PLATFORM_VOLUME_PACTL.includes(process.arch);
+}
+
+/** 通过 pactl 设置默认 sink 音量（0-100），即时生效 */
+function setPactlVolume(vol) {
+  try {
+    execFileSync('pactl', ['set-sink-volume', '@DEFAULT_SINK@', `${vol}%`]);
+    return true;
+  } catch (e) {
+    console.error(`⚠️ pactl 设置音量失败: ${e.message}`);
+    return false;
+  }
+}
+
+/**
+ * 音量 → 播放工具参数：
+ *  - pactl 平台（x86）：固定 100% 原始响度（音量由 pactl 系统音量独占控制，避免双重放大）
+ *  - 非 pactl 平台（树莓派）：mpg123 --scale n (32768=100%) / ffplay -volume 0-100
+ */
+function volumeArgs(isMp3, vol) {
+  if (isPactlVolume()) {
+    return isMp3 ? ['--scale', '32768'] : ['-volume', '100'];
+  }
+  if (isMp3) return ['--scale', String(Math.round((vol / 100) * 32768))];
+  return ['-volume', String(vol)];
+}
 
 /**
  * 清理残留的播放进程。
@@ -53,15 +109,15 @@ function platformCardArgs(arch, isMp3) {
 }
 
 /**
- * 组装播放参数 = 工具默认参数 + 平台声卡参数 + 文件路径
- * 例（树莓派 mp3）: mpg123 -q -a hw:CARD=Headphones file.mp3
- * 例（x86 mp3）   : mpg123 -q file.mp3   （系统默认声卡）
+ * 组装播放参数 = 工具默认参数 + 平台声卡参数 + 音量参数 + 文件路径
+ * 例（树莓派 mp3）: mpg123 -q -a hw:CARD=Headphones --scale 26214 file.mp3
+ * 例（x86 mp3）   : mpg123 -q --scale 26214 file.mp3
  */
 function buildArgs(filePath) {
   const ext = path.extname(filePath).toLowerCase();
   const isMp3 = ext === '.mp3';
   const cmd = isMp3 ? config.player.mp3 : config.player.other;
-  return { command: cmd.command, args: [...cmd.args, ...platformCardArgs(process.arch, isMp3), filePath] };
+  return { command: cmd.command, args: [...cmd.args, ...platformCardArgs(process.arch, isMp3), ...volumeArgs(isMp3, volume), filePath] };
 }
 
 /** 启动子进程；若命令不存在则回退到 ffplay */
@@ -104,6 +160,7 @@ async function play(filePath, onEnd) {
     return;
   }
   proc = newProc;
+  if (proc) proc.filePath = filePath; // 记录文件：音量调节时以此重启
 
   if (!proc) {
     console.error(`❌ 播放工具启动失败，请安装: sudo apt install mpg123 ffmpeg`);
@@ -173,4 +230,32 @@ function isPlaying() {
   return proc !== null;
 }
 
-module.exports = { play, stop, pause, resume, isPlaying };
+/** 当前音量（0-100） */
+function getVolume() {
+  return volume;
+}
+
+/**
+ * 设置音箱音量：
+ *  - pactl 平台（x86）：pactl 系统音量即时生效，不打断播放
+ *  - 非 pactl 平台（树莓派）：应用内 --scale，调音量需重启当前曲（1 秒级）
+ * 均持久化（重启服务不丢）
+ */
+function setVolume(v) {
+  volume = Math.max(config.volume.min, Math.min(config.volume.max, Math.round(v)));
+  saveVolume(volume);
+
+  if (isPactlVolume()) {
+    setPactlVolume(volume); // 即时生效，不重启
+  } else if (proc) {
+    // 正在播放：以新音量重启当前曲。播放结束回调不触发（代际号+stoppedByUs 双重保护）
+    play(proc.filePath, null);
+  }
+  return volume;
+}
+
+module.exports = { play, stop, pause, resume, isPlaying, getVolume, setVolume };
+
+// x86：启动时把系统 sink 音量同步到持久化值，避免残留系统音量影响播放
+// （放模块末尾：此时 PLATFORM_VOLUME_PACTL/setPactlVolume 已定义）
+if (isPactlVolume()) setPactlVolume(volume);

@@ -37,4 +37,12 @@ module.exports = {
     arm64:  { mp3: ['-a', 'hw:CARD=Headphones'], other: ['-audio_device', 'hw:CARD=Headphones'] },
     // x86 / x64 等：用系统默认声卡（桌面环境经 PulseAudio 路由）
   },
+
+  // 音箱音量（0-100）：持久化文件路径（树莓派常开，重启服务不丢音量）
+  volume: {
+    min: 0,
+    max: 100,
+    default: 80,
+    file: path.join(__dirname, 'data', 'volume.json'),
+  },
 };
