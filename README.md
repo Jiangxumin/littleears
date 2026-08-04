@@ -127,39 +127,39 @@ media/廖彩杏/
 
 ## 部署到树莓派（开机自启）
 
-用 **systemd** 让服务开机自动运行、崩溃自动重启。
+项目自带 `scripts/` 部署脚本，一键安装 systemd 服务（开机自启、崩溃自动重启）。
 
-1. 创建服务文件 `/etc/systemd/system/littleears.service`：
-
-```ini
-[Unit]
-Description=LittleEars Audio Player
-After=network.target
-
-[Service]
-Type=simple
-User=pi
-WorkingDirectory=/home/pi/littleears
-Environment=LITTLEEARS_PASSWORD=你的密码
-ExecStart=/usr/bin/node server.js
-Restart=on-failure
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-```
-
-> `User`、`WorkingDirectory`、`node` 路径按实际修改（`which node` 查看 node 路径）。
-
-2. 启用并启动：
+### 一键安装
 
 ```bash
-sudo systemctl daemon-reload
-sudo systemctl enable littleears   # 开机自启
-sudo systemctl start littleears    # 立即启动
-sudo systemctl status littleears   # 查看状态
-journalctl -u littleears -f        # 查看实时日志
+cd /home/promote/edu_ws/littleears
+
+# 方式一：不设密码（局域网免密）
+bash scripts/install.sh
+
+# 方式二：设密码（局域网免密，仅公网需登录）
+LITTLEEARS_PASSWORD=你的密码 bash scripts/install.sh
 ```
+
+脚本会自动：检查 node/播放工具 → 装 npm 依赖 → 生成 `/etc/systemd/system/littleears.service` → 启用并启动。
+
+### 常用命令
+
+```bash
+sudo systemctl status littleears     # 查看状态
+sudo systemctl restart littleears    # 重启
+sudo systemctl stop littleears       # 停止
+journalctl -u littleears -f          # 实时日志
+bash scripts/uninstall.sh            # 卸载
+```
+
+### 访问
+
+安装后直接访问 `http://树莓派IP:3000`。
+
+> **已有 nginx 的树莓派**：LittleEars 自带完整 Web 服务（含认证），直接用 3000 端口即可，**无需 nginx 反代**。若你希望用 nginx 统一管理（走 80 端口/域名），参考 `scripts/nginx-littleears.conf`——**务必保留 `X-Forwarded-For` 那行**，否则公网认证会失效。
+
+> 修改密码：编辑 `/etc/systemd/system/littleears.service` 里的 `Environment=` 行，再 `sudo systemctl daemon-reload && sudo systemctl restart littleears`。
 
 ## API 一览
 
