@@ -373,6 +373,18 @@
     }
   });
 
+  // 浏览器模式：<audio> 播放/暂停时同步播放器图标（手动暂停、定时到点暂停都走这里）
+  audioEl.addEventListener('play', () => {
+    if (playerEl.hidden) return;
+    playerIconEl.textContent = '▶';
+    document.getElementById('btnPause').textContent = '⏸';
+  });
+  audioEl.addEventListener('pause', () => {
+    if (playerEl.hidden) return;
+    playerIconEl.textContent = '⏸';
+    document.getElementById('btnPause').textContent = '▶';
+  });
+
   // ================= 控制按钮 =================
   document.getElementById('btnPause').addEventListener('click', async () => {
     if (mode === 'browser') {
