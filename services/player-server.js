@@ -18,6 +18,7 @@ const config = require('../config');
 let proc = null; // 当前播放子进程
 let playGen = 0; // 播放代际号：解决快速连点时的异步竞态
 let volume = loadVolume(); // 当前音箱音量（0-100）
+let currentEnd = null; // 当前曲「自然播完」回调：调音量重启当前曲时复用，避免丢失自动下一首
 
 /** 从持久化文件加载音量；无文件/损坏时用默认值 */
 function loadVolume() {
@@ -148,6 +149,7 @@ function spawnWithFallback(spec, onEnd) {
 async function play(filePath, onEnd) {
   // 代际令牌：本次播放的唯一编号。快速连点时，只有最新的一次会被采纳
   const gen = ++playGen;
+  currentEnd = onEnd; // 记住本次注册的结束回调，供 setVolume 重启当前曲时复用
   killCurrent(); // 停掉上一个（轻量，不用 pkill 以免误伤并发中的新进程）
 
   console.log(`🔊 音箱播放: ${filePath}`);
@@ -188,6 +190,7 @@ function stop() {
   // 代际号前进：让所有「等待中的播放」作废
   playGen++;
   killCurrent();
+  currentEnd = null; // 清空结束回调，避免 stop 后残留
   // 兜底强杀：SIGKILL 不可被捕获，即使有漏网的 mpg123/ffplay 也必死
   // （进程消失时 exit 事件的 signal 为 SIGKILL，已计入 stoppedByUs，不会误触发 onEnd）
   try {
@@ -248,8 +251,8 @@ function setVolume(v) {
   if (isPactlVolume()) {
     setPactlVolume(volume); // 即时生效，不重启
   } else if (proc) {
-    // 正在播放：以新音量重启当前曲。播放结束回调不触发（代际号+stoppedByUs 双重保护）
-    play(proc.filePath, null);
+    // 正在播放：以新音量重启当前曲，复用已注册的结束回调，保证重启后仍能自动下一首
+    play(proc.filePath, currentEnd);
   }
   return volume;
 }
