@@ -58,7 +58,7 @@
 - 新增 `POST /api/sleep`，body `{ minutes }`（`#6`）：
   - 校验 `minutes` 为数字且 `0 <= minutes <= 480`（480 = 8h，与 UI 小时上限一致）；非数字或越界 → `400`。
   - `minutes === 0` → `cancelSleepTimer()`；否则 `startSleepTimer(minutes)`。
-  - 返回 `{ ok: true, sleepRemaining, sleepFireSeq }`。
+  - 返回 `{ ok: true, sleepRemaining, sleepFireSeq }`。供前端**立即**刷新倒计时与 `lastSleepFireSeq` 基线（不必等下一次 2s 轮询，提升「启动定时」的即时反馈）；后续持续倒计时仍由 `GET /api/status` 轮询驱动。
 - `POST /api/next`：透传 `req.body.auto` → `playerManager.next({ auto: !!req.body.auto })`。浏览器 `<audio>` 'ended' 传 `{auto:true}`；btnNext 不传（手动）。`#1`
 - 剩余时间与到点序号经现有 `GET /api/status` 的 `sleepRemaining` / `sleepFireSeq` 字段返回（无需新端点）。
 
