@@ -55,6 +55,17 @@ test('_onSleepFire 空闲 → 只立标志，无副作用', () => {
   assert.strictEqual(manager.state, 'idle');
 });
 
+test('_onSleepFire 后 sleepRemaining 归 null（前端据此隐藏倒计时/解锁）', () => {
+  fresh();
+  manager.startQueue(['a.mp3'], 'server', 0);
+  manager.startSleepTimer(30);
+  assert.ok(manager.getStatus().sleepRemaining != null);
+  manager._onSleepFire();
+  assert.strictEqual(manager.getStatus().sleepRemaining, null);
+  assert.strictEqual(manager.sleepTimerId, null); // 句柄已清除（不阻塞进程）
+  assert.strictEqual(manager.stopAfterCurrent, true); // 兜底标志仍在（不随到点清除）
+});
+
 test('_advanceAuto 命中标志 → stop', () => {
   fresh();
   manager.startQueue(['a.mp3', 'b.mp3'], 'server', 0);

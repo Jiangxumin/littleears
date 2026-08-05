@@ -31,7 +31,6 @@
   const sleepMinsEl = document.getElementById('sleepMins');
   const sleepCountdownEl = document.getElementById('sleepCountdown');
   const btnSleepStart = document.getElementById('btnSleepStart');
-  const btnSleepCancel = document.getElementById('btnSleepCancel');
 
   // method 显式指定：GET 不传 body，POST 传对象
   const api = (path, { method = 'GET', body } = {}) => fetch(path, {
@@ -83,24 +82,32 @@
 
   // ================= 定时暂停 =================
   let lastSleepFireSeq = null; // null = 尚未从后端初始化
+  let sleepActive = false;     // 是否有活动定时（驱动按钮文案 / 时间设置锁定）
 
-  // 由 status 刷新倒计时 + 按到点事件同步浏览器暂停
+  // 由 status 刷新：到点事件暂停 + 锁定/解锁时间设置 + 按钮切换 + 倒计时
   function syncSleep(status) {
     if (!status || typeof status.sleepFireSeq !== 'number') return; // 非法状态(如 400 错误体)不污染基线
     if (lastSleepFireSeq === null) lastSleepFireSeq = status.sleepFireSeq; // 首次仅初始化
-    if (status.sleepRemaining == null) {
-      sleepCountdownEl.hidden = true;
-      btnSleepCancel.hidden = true;
-      lastSleepFireSeq = status.sleepFireSeq; // 无活动定时：对齐基线（后端重启恢复）
-      return;
-    }
-    sleepCountdownEl.hidden = false;
-    btnSleepCancel.hidden = false;
-    sleepCountdownEl.textContent = `⏲ 剩余 ${formatTime(status.sleepRemaining)}`;
-    // 到点事件：序号递增 → 浏览器暂停一次（音箱模式后端已直接暂停）
+
+    // 到点事件检测：序号递增 → 浏览器暂停一次（音箱模式后端已直接暂停）。
+    // 必须在「对齐基线」之前，否则递增会被下方 inactive 分支吞掉，漏掉暂停。
     if (status.sleepFireSeq > lastSleepFireSeq) {
       lastSleepFireSeq = status.sleepFireSeq;
       if (mode === 'browser') audioEl.pause();
+    }
+
+    // 启动定时后锁定时间设置；到点/取消后后端置 sleepRemaining=null → 自动解锁
+    sleepActive = status.sleepRemaining != null && status.sleepRemaining > 0;
+    sleepHoursEl.disabled = sleepActive;
+    sleepMinsEl.disabled = sleepActive;
+    btnSleepStart.textContent = sleepActive ? '停止定时' : '启动定时';
+
+    if (sleepActive) {
+      sleepCountdownEl.hidden = false;
+      sleepCountdownEl.textContent = `⏲ 剩余 ${formatHMS(status.sleepRemaining)}`;
+    } else {
+      sleepCountdownEl.hidden = true;
+      lastSleepFireSeq = status.sleepFireSeq; // 无活动定时：对齐基线（后端重启恢复）
     }
   }
 
@@ -112,10 +119,15 @@
     syncSleep(res);
   }
 
-  btnSleepStart.addEventListener('click', startSleep);
-  btnSleepCancel.addEventListener('click', async () => {
-    const res = await api('/api/sleep', { method: 'POST', body: { minutes: 0 } });
-    syncSleep(res);
+  // 单按钮切换：启动 ↔ 停止。停止仅取消定时，不触发暂停。
+  btnSleepStart.addEventListener('click', async () => {
+    if (sleepActive) {
+      const res = await api('/api/sleep', { method: 'POST', body: { minutes: 0 } });
+      if (res && res.error) { toast(res.error); return; }
+      syncSleep(res);
+    } else {
+      await startSleep();
+    }
   });
 
   // ================= 播放控制 =================
@@ -124,6 +136,15 @@
     const m = Math.floor(sec / 60);
     const s = Math.floor(sec % 60);
     return `${m}:${String(s).padStart(2, '0')}`;
+  }
+
+  /** 秒 → H:MM:SS（定时倒计时用，最长 9h） */
+  function formatHMS(totalSec) {
+    if (!isFinite(totalSec) || totalSec < 0) totalSec = 0;
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = Math.floor(totalSec % 60);
+    return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   }
 
   // 更新播放器 UI（status 为 null 时隐藏）

@@ -225,6 +225,10 @@ class PlayerManager {
   _onSleepFire() {
     this.sleepFireSeq++;
     this.stopAfterCurrent = true;
+    this.sleepEndsAt = null; // 清空 → sleepRemaining 归 null → 前端隐藏倒计时、解锁时间设置
+    // 清掉定时句柄：生产环境此回调正是该 timer 触发的(clearTimeout 为无害 no-op)；
+    // 单测中同步调用 _onSleepFire 时，真实 timer 仍 pending，必须清掉以免阻塞进程退出。
+    if (this.sleepTimerId) { clearTimeout(this.sleepTimerId); this.sleepTimerId = null; }
     if (this.state === STATE.PLAYING) this.togglePause();
   }
 
