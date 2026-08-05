@@ -27,6 +27,11 @@
   const volumeBarEl = document.getElementById('volumeBar');
   const volumeSliderEl = document.getElementById('volumeSlider');
   const volumeValueEl = document.getElementById('volumeValue');
+  const sleepHoursEl = document.getElementById('sleepHours');
+  const sleepMinsEl = document.getElementById('sleepMins');
+  const sleepCountdownEl = document.getElementById('sleepCountdown');
+  const btnSleepStart = document.getElementById('btnSleepStart');
+  const btnSleepCancel = document.getElementById('btnSleepCancel');
 
   // method 显式指定：GET 不传 body，POST 传对象
   const api = (path, { method = 'GET', body } = {}) => fetch(path, {
@@ -74,6 +79,42 @@
   document.querySelector('.player__modes').addEventListener('click', (e) => {
     const btn = e.target.closest('.mode2-btn');
     if (btn) setPlayMode(btn.dataset.playmode);
+  });
+
+  // ================= 定时暂停 =================
+  let lastSleepFireSeq = null; // null = 尚未从后端初始化
+
+  // 由 status 刷新倒计时 + 按到点事件同步浏览器暂停
+  function syncSleep(status) {
+    if (!status) return;
+    if (lastSleepFireSeq === null) lastSleepFireSeq = status.sleepFireSeq; // 首次仅初始化
+    if (status.sleepRemaining == null) {
+      sleepCountdownEl.hidden = true;
+      btnSleepCancel.hidden = true;
+      lastSleepFireSeq = status.sleepFireSeq; // 无活动定时：对齐基线（后端重启恢复）
+      return;
+    }
+    sleepCountdownEl.hidden = false;
+    btnSleepCancel.hidden = false;
+    sleepCountdownEl.textContent = `⏲ 剩余 ${formatTime(status.sleepRemaining)}`;
+    // 到点事件：序号递增 → 浏览器暂停一次（音箱模式后端已直接暂停）
+    if (status.sleepFireSeq > lastSleepFireSeq) {
+      lastSleepFireSeq = status.sleepFireSeq;
+      if (mode === 'browser') audioEl.pause();
+    }
+  }
+
+  async function startSleep() {
+    const minutes = Number(sleepHoursEl.value) * 60 + Number(sleepMinsEl.value);
+    const res = await api('/api/sleep', { method: 'POST', body: { minutes } });
+    if (res && res.sleepFireSeq != null) lastSleepFireSeq = res.sleepFireSeq; // 启动即对齐
+    syncSleep(res);
+  }
+
+  btnSleepStart.addEventListener('click', startSleep);
+  btnSleepCancel.addEventListener('click', async () => {
+    const res = await api('/api/sleep', { method: 'POST', body: { minutes: 0 } });
+    syncSleep(res);
   });
 
   // ================= 播放控制 =================
@@ -320,15 +361,15 @@
     }
   });
 
-  // 播完自动下一首
+  // 播完自动下一首（auto:true = 自动推进，受定时兜底约束）
   audioEl.addEventListener('ended', async () => {
-    const res = await api('/api/next', { method: 'POST' });
+    const res = await api('/api/next', { method: 'POST', body: { auto: true } });
     if (res.url) {
       audioEl.src = res.url;
       audioEl.play();
       updatePlayerUI(res);
     } else {
-      updatePlayerUI(null); // 队列播完
+      updatePlayerUI(null); // 队列播完（或定时命中）→ 收起播放器
     }
   });
 
@@ -380,12 +421,11 @@
     }
   });
 
-  // ================= 音箱模式轮询 =================
+  // ================= 音箱模式轮询 + 定时同步（两模式都跑） =================
   setInterval(async () => {
-    if (mode === 'server') {
-      const status = await api('/api/status'); // GET，不传 body
-      updatePlayerUI(status);
-    }
+    const status = await api('/api/status');
+    syncSleep(status);
+    if (mode === 'server') updatePlayerUI(status);
   }, 2000);
 
   // ================= 轻量提示 toast =================

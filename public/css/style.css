@@ -378,6 +378,49 @@ body {
   transform: translateX(-50%) translateY(0);
 }
 
+/* ---------- 定时暂停 ---------- */
+.sleepbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 24px;
+  padding: 10px 16px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(74, 63, 53, 0.06);
+}
+.sleepbar__icon { font-size: 1.1rem; }
+.sleepbar__select {
+  padding: 6px 10px;
+  border: 2px solid #e0d5c6;
+  border-radius: 18px;
+  background: #fff;
+  color: #4a3f35;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.sleepbar__btn {
+  padding: 6px 16px;
+  border: none;
+  border-radius: 18px;
+  background: #e07a5f;
+  color: #fff;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+.sleepbar__btn:hover { background: #d96f52; }
+.sleepbar__btn:active { transform: scale(0.94); }
+.sleepbar__countdown { font-size: 0.9rem; font-weight: 600; color: #e07a5f; }
+.sleepbar__cancel {
+  width: 28px; height: 28px;
+  border: none; border-radius: 50%;
+  background: #f7efe3; color: #8a7f72;
+  font-size: 0.9rem; cursor: pointer;
+}
+.sleepbar__cancel:hover { background: #ffe8df; color: #e07a5f; }
+
 /* ---------- 移动端适配 ---------- */
 @media (max-width: 600px) {
   .topbar {
@@ -392,7 +435,8 @@ body {
   .mode-btn { padding: 8px 14px; } /* 更大的触摸目标 */
 
   .content,
-  .player {
+  .player,
+  .sleepbar {
     margin-left: 10px;
     margin-right: 10px;
   }

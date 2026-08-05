@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><%= title %></title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/style.css?v=20260807">
 </head>
 <body>
   <header class="topbar">
@@ -25,6 +25,31 @@
       <% } %>
     </div>
   </header>
+
+  <!-- 定时暂停：独立于 #player，常驻可见（不随 idle 隐藏） -->
+  <section class="sleepbar" id="sleepTimer">
+    <span class="sleepbar__icon">⏲</span>
+    <select id="sleepHours" class="sleepbar__select" aria-label="定时小时">
+      <option value="0">0时</option>
+      <option value="1">1时</option>
+      <option value="2">2时</option>
+      <option value="3">3时</option>
+      <option value="4">4时</option>
+      <option value="5">5时</option>
+      <option value="6">6时</option>
+      <option value="7">7时</option>
+      <option value="8">8时</option>
+    </select>
+    <select id="sleepMins" class="sleepbar__select" aria-label="定时分钟">
+      <option value="0">0分</option>
+      <option value="15">15分</option>
+      <option value="30">30分</option>
+      <option value="45">45分</option>
+    </select>
+    <button class="sleepbar__btn" id="btnSleepStart">启动定时</button>
+    <span class="sleepbar__countdown" id="sleepCountdown" hidden></span>
+    <button class="sleepbar__cancel" id="btnSleepCancel" hidden title="取消定时">✕</button>
+  </section>
 
   <main class="content">
     <!-- 播放状态 + 控制栏 -->
@@ -73,7 +98,7 @@
   <!-- 浏览器模式使用的隐藏 audio 元素 -->
   <audio id="audio" preload="none"></audio>
 
-  <!-- v=20260806 缓存版本号：代码更新后需手动递增，强制浏览器拉新 -->
-  <script src="/js/app.js?v=20260806"></script>
+  <!-- v=20260807 缓存版本号：代码更新后需手动递增，强制浏览器拉新 -->
+  <script src="/js/app.js?v=20260807"></script>
 </body>
 </html>
