@@ -9,6 +9,9 @@ node_modules/
 media/
 !media/.gitkeep
 
+# 运行时状态（音量等持久化数据，不入库）
+data/
+
 # 日志
 *.log
 npm-debug.log*
