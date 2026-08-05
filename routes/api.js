@@ -8,6 +8,7 @@
  *  POST /api/pause     暂停 / 恢复
  *  POST /api/stop      停止
  *  POST /api/playMode  设置循环模式 { playMode }
+ *  POST /api/sleep     定时暂停 { minutes }，0 = 取消
  *  GET  /api/status    当前播放状态
  */
 const express = require('express');
@@ -80,9 +81,10 @@ router.post('/play', (req, res) => {
   res.json(resp);
 });
 
-/** 下一首（手动切歌 / 浏览器模式 ended 后） */
+/** 下一首（手动切歌 / 浏览器模式 ended 后；auto:true=自动推进） */
 router.post('/next', (req, res) => {
-  const result = playerManager.next();
+  const { auto } = req.body || {};
+  const result = playerManager.next({ auto: !!auto });
   if (!result.ok) return res.status(400).json(result);
 
   // 浏览器模式需要返回下一首 URL
@@ -110,6 +112,17 @@ router.post('/playMode', (req, res) => {
   if (!playMode) return res.status(400).json({ error: '缺少 playMode' });
   playerManager.setPlayMode(playMode);
   res.json({ ok: true, playMode: playerManager.playMode });
+});
+
+/** 定时暂停：minutes 分钟后到点暂停；0 = 取消 */
+router.post('/sleep', (req, res) => {
+  const { minutes } = req.body || {};
+  if (typeof minutes !== 'number' || isNaN(minutes) || minutes < 0 || minutes > 480) {
+    return res.status(400).json({ error: 'minutes 须为 0-480 的数字' });
+  }
+  if (minutes === 0) playerManager.cancelSleepTimer();
+  else playerManager.startSleepTimer(minutes);
+  res.json({ ok: true, ...playerManager.getStatus() });
 });
 
 /** 播放状态 */
