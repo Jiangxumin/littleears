@@ -86,7 +86,7 @@
 
   // 由 status 刷新倒计时 + 按到点事件同步浏览器暂停
   function syncSleep(status) {
-    if (!status) return;
+    if (!status || typeof status.sleepFireSeq !== 'number') return; // 非法状态(如 400 错误体)不污染基线
     if (lastSleepFireSeq === null) lastSleepFireSeq = status.sleepFireSeq; // 首次仅初始化
     if (status.sleepRemaining == null) {
       sleepCountdownEl.hidden = true;
@@ -107,6 +107,7 @@
   async function startSleep() {
     const minutes = Number(sleepHoursEl.value) * 60 + Number(sleepMinsEl.value);
     const res = await api('/api/sleep', { method: 'POST', body: { minutes } });
+    if (res && res.error) { toast(res.error); return; } // 校验失败等：提示且不污染状态
     if (res && res.sleepFireSeq != null) lastSleepFireSeq = res.sleepFireSeq; // 启动即对齐
     syncSleep(res);
   }
@@ -483,4 +484,5 @@
   syncPlayModeUI();
   syncVolumeUI();
   loadTree();
+  api('/api/status').then(syncSleep); // 立即首次同步，避免 2s 轮询窗口内漏掉到点事件
 })();

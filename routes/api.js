@@ -117,8 +117,8 @@ router.post('/playMode', (req, res) => {
 /** 定时暂停：minutes 分钟后到点暂停；0 = 取消 */
 router.post('/sleep', (req, res) => {
   const { minutes } = req.body || {};
-  if (typeof minutes !== 'number' || isNaN(minutes) || minutes < 0 || minutes > 480) {
-    return res.status(400).json({ error: 'minutes 须为 0-480 的数字' });
+  if (typeof minutes !== 'number' || isNaN(minutes) || minutes < 0 || minutes > 540) {
+    return res.status(400).json({ error: 'minutes 须为 0-540 的数字' });
   }
   if (minutes === 0) playerManager.cancelSleepTimer();
   else playerManager.startSleepTimer(minutes);

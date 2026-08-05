@@ -43,9 +43,16 @@ test('/api/sleep minutes:0 → 取消', async () => {
   assert.strictEqual(json.sleepRemaining, null);
 });
 
-test('/api/sleep >480 → 400', async () => {
-  const { status } = await post('/api/sleep', { minutes: 481 });
+test('/api/sleep >540 → 400', async () => {
+  const { status } = await post('/api/sleep', { minutes: 541 });
   assert.strictEqual(status, 400);
+});
+
+test('/api/sleep 8时45分(525) → 200', async () => {
+  playerManager.stop();
+  const { status, json } = await post('/api/sleep', { minutes: 525 });
+  assert.strictEqual(status, 200);
+  assert.ok(json.sleepRemaining <= 31500 && json.sleepRemaining > 31495);
 });
 
 test('/api/sleep 负数 → 400', async () => {
