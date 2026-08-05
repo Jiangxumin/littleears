@@ -56,7 +56,7 @@
 ### 3.2 `routes/api.js`
 
 - 新增 `POST /api/sleep`，body `{ minutes }`（`#6`）：
-  - 校验 `minutes` 为数字且 `0 <= minutes <= 480`（480 = 8h，与 UI 小时上限一致）；非数字或越界 → `400`。
+  - 校验 `minutes` 为数字且 `0 <= minutes <= 540`（540 = 9h，覆盖 UI 最大组合 8时45分 = 525）；非数字或越界 → `400`。
   - `minutes === 0` → `cancelSleepTimer()`；否则 `startSleepTimer(minutes)`。
   - 返回 `{ ok: true, sleepRemaining, sleepFireSeq }`。供前端**立即**刷新倒计时与 `lastSleepFireSeq` 基线（不必等下一次 2s 轮询，提升「启动定时」的即时反馈）；后续持续倒计时仍由 `GET /api/status` 轮询驱动。
 - `POST /api/next`：透传 `req.body.auto` → `playerManager.next({ auto: !!req.body.auto })`。浏览器 `<audio>` 'ended' 传 `{auto:true}`；btnNext 不传（手动）。`#1`
@@ -111,7 +111,7 @@ UI 位置（`#2`，关键）：定时控件**独立于 `#player` 区域**（放�
   - **自动推进命中标志**：`_advanceAuto()` / `onEnded()` / `next({auto:true})` 任一在标志为真时 → `stop()`，不进下一首。
   - **手动 next 不命中**：`next()`（无 auto）在标志为真时仍正常切歌；标志保留。两模式一致。
   - 浏览器 `ended` → `/api/next {auto:true}` 命中标志 → 返回 `state:idle` 且无 `url`。
-  - `/api/sleep` 校验：`-1` / `481` / 非数字 → `400`；`0` → 取消（`sleepRemaining===null`）。
+  - `/api/sleep` 校验：`-1` / `541` / 非数字 → `400`；`0` → 取消（`sleepRemaining===null`）；`525` → 200。
   - `startQueue` 后标志被清，正常连播恢复。
   - `cancelSleepTimer` 后 `sleepRemaining === null`（`sleepFireSeq` 不重置）。
   - 队列自然播完 → `stop()` 连带清定时。

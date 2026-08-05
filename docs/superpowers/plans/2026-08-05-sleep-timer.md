@@ -377,7 +377,7 @@ git commit -m "feat: 定时暂停核心逻辑(player-manager) + 单测"
 **Interfaces:**
 - Consumes: Task 1 的 `startSleepTimer` / `cancelSleepTimer` / `next({auto})` / `getStatus()`。
 - Produces：
-  - `POST /api/sleep {minutes}` → 校验 `0<=minutes<=480`，越界/非数字 `400`；`0` 取消；返回 `{ok, ...status}`（含 `sleepRemaining`/`sleepFireSeq`）。
+  - `POST /api/sleep {minutes}` → 校验 `0<=minutes<=540`，越界/非数字 `400`；`0` 取消；返回 `{ok, ...status}`（含 `sleepRemaining`/`sleepFireSeq`）。
   - `POST /api/next {auto?:true}` → 透传 `auto`。
 
 - [ ] **Step 1: 写失败测试**
@@ -430,8 +430,8 @@ test('/api/sleep minutes:0 → 取消', async () => {
   assert.strictEqual(json.sleepRemaining, null);
 });
 
-test('/api/sleep >480 → 400', async () => {
-  const { status } = await post('/api/sleep', { minutes: 481 });
+test('/api/sleep >540 → 400', async () => {
+  const { status } = await post('/api/sleep', { minutes: 541 });
   assert.strictEqual(status, 400);
 });
 
@@ -494,8 +494,8 @@ router.post('/next', (req, res) => {
 /** 定时暂停：minutes 分钟后到点暂停；0 = 取消 */
 router.post('/sleep', (req, res) => {
   const { minutes } = req.body || {};
-  if (typeof minutes !== 'number' || isNaN(minutes) || minutes < 0 || minutes > 480) {
-    return res.status(400).json({ error: 'minutes 须为 0-480 的数字' });
+  if (typeof minutes !== 'number' || isNaN(minutes) || minutes < 0 || minutes > 540) {
+    return res.status(400).json({ error: 'minutes 须为 0-540 的数字' });
   }
   if (minutes === 0) playerManager.cancelSleepTimer();
   else playerManager.startSleepTimer(minutes);
