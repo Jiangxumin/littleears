@@ -33,22 +33,23 @@
 - `sleepTimerId` —— `setTimeout` 句柄。
 - `sleepEndsAt` —— 到点时间戳（`Date.now() + 总分钟*60000`），供轮询计算剩余。
 - `stopAfterCurrent` —— 布尔标志。
+- `sleepFireSeq` —— 单调递增的「到点序号」（初始 0），每次到点 `++`。供前端**按事件**同步浏览器暂停，避免按状态同步造成的反馈循环（见 3.3）。
 
 新增方法：
 - `startSleepTimer(totalMinutes)`：清旧定时 → 设新 `setTimeout(分钟*60000, () => this._onSleepFire())` → 记 `sleepEndsAt`。
-- `cancelSleepTimer()`：`clearTimeout(sleepTimerId)`、置空 `sleepEndsAt`、清 `stopAfterCurrent`。
-- `_onSleepFire()`：`this.stopAfterCurrent = true; if (this.state === STATE.PLAYING) this.togglePause();`
+- `cancelSleepTimer()`：`clearTimeout(sleepTimerId)`、置空 `sleepEndsAt`、清 `stopAfterCurrent`（**不**清 `sleepFireSeq`，序号只增不减）。
+- `_onSleepFire()`：`this.sleepFireSeq++; this.stopAfterCurrent = true; if (this.state === STATE.PLAYING) this.togglePause();`
 
 改动：
 - `_advance()` 顶部：`if (this.stopAfterCurrent) { this.stopAfterCurrent = false; this.stop(); return; }`
 - `startQueue()`：开头清 `stopAfterCurrent`（新会话不继承旧标志）。
 - `stop()`：清定时（停止播放即视为结束会话）。
-- `_status()`：新增 `sleepRemaining`（秒，向下取整；无定时为 `null`）= `Math.max(0, round((sleepEndsAt - Date.now())/1000))`，`sleepEndsAt` 为空时 `null`。
+- `_status()`：新增 `sleepRemaining`（秒，向下取整；无定时为 `null`）= `sleepEndsAt ? Math.max(0, Math.floor((sleepEndsAt - Date.now())/1000)) : null`；以及 `sleepFireSeq`（数字）。
 
 ### 3.2 `routes/api.js`
 
-- 新增 `POST /api/sleep`，body `{ minutes: number }`：`minutes <= 0` → `cancelSleepTimer()`；否则 `startSleepTimer(minutes)`。返回 `{ ok: true, sleepRemaining, sleepActive }`。
-- 剩余时间经现有 `GET /api/status` 的 `sleepRemaining` 字段返回（无需新端点）。
+- 新增 `POST /api/sleep`，body `{ minutes: number }`：`minutes <= 0` → `cancelSleepTimer()`；否则 `startSleepTimer(minutes)`。返回 `{ ok: true, sleepRemaining, sleepFireSeq }`。
+- 剩余时间与到点序号经现有 `GET /api/status` 的 `sleepRemaining` / `sleepFireSeq` 字段返回（无需新端点）。
 
 ### 3.3 `views/index.ejs` + `public/js/app.js`
 
@@ -59,14 +60,14 @@ UI（播放器区内新增一行）：
 
 轮询同步（扩展现有 2s 轮询为**两种输出模式都跑**）：
 - 渲染倒计时：读 `status.sleepRemaining`，`null` 则隐藏。
-- 同步暂停：若 `status.state === 'paused'` 且浏览器模式 `<audio>` 仍在播 → `audioEl.pause()`（后端定时器够不到浏览器音频，靠轮询把暂停同步过来；只暂停、绝不强制播放，避免来回拉扯）。
-- 音箱模式：后端已直接暂停，轮询仅刷新 UI 为 ⏸。
+- **按到点事件同步浏览器暂停**（关键）：前端记录上次见到的 `sleepFireSeq`；当 `status.sleepFireSeq > lastSleepFireSeq` 时视为「刚刚到点」→ 更新 `lastSleepFireSeq`，并在浏览器模式 `audioEl.pause()` 一次。**不**根据 `state==='paused'` 来暂停——那样会在用户手动恢复后把音频再次暂停（反馈循环）。序号只在到点时递增，故每次到点只暂停一次，之后用户可自由恢复。
+- 音箱模式：后端已直接暂停音箱，轮询仅刷新 UI 为 ⏸；`sleepFireSeq` 变化时无需额外动作。
 
 ## 4. 数据流
 
 1. 用户选 0h30m → 点「启动定时」→ `POST /api/sleep {minutes:30}` → `startSleepTimer(30)` → `setTimeout(30min)`，记 `sleepEndsAt`。
 2. 前端 2s 轮询 `GET /api/status` → 读 `sleepRemaining` 显示倒计时。
-3. 到点 → `_onSleepFire()`：立标志 + 暂停。音箱静音（或当前曲播完后停）；浏览器经轮询同步暂停。
+3. 到点 → `_onSleepFire()`：`sleepFireSeq++`、立 `stopAfterCurrent` 标志 + 暂停。音箱静音（或当前曲播完后停）；浏览器经轮询发现 `sleepFireSeq` 变化 → `audioEl.pause()` 一次。
 4. 取消：点「取消」→ `POST /api/sleep {minutes:0}` → `cancelSleepTimer()`。
 
 ## 5. 边界情况
@@ -82,9 +83,10 @@ UI（播放器区内新增一行）：
 
 - 后端单测（mock `player-server`/`scanner`，同既有探针法）：
   - 启动 30min 定时 → `sleepEndsAt` 约 30min 后；`sleepRemaining` 随时间递减。
-  - 到点 + 正在播放 → `state` 变 `paused`、`stopAfterCurrent === true`。
+  - 到点 + 正在播放 → `sleepFireSeq` 递增、`state` 变 `paused`、`stopAfterCurrent === true`。
   - 到点 + 已暂停 → `state` 仍 `paused`、标志置真、**未误变 playing**。
   - 标志命中：`_advance()` → `stop()`，不进下一首。
   - `startQueue` 后标志被清，正常连播恢复。
-  - `cancelSleepTimer` 后 `sleepRemaining === null`。
+  - `cancelSleepTimer` 后 `sleepRemaining === null`（`sleepFireSeq` 不重置）。
+  - 前端：`sleepFireSeq` 变化时浏览器音频暂停一次；模拟用户随后 `audioEl.play()` 恢复，确认**不会被下一次轮询再次暂停**（无反馈循环）。
 - 手测（树莓派音箱模式）：设 1 分钟（或最小档）定时 → 到点音箱静音；若暂停未生效，等当前曲播完确认不接下一首。
