@@ -38,6 +38,11 @@ class PlayerManager {
     this.currentFile = null; // 当前播放文件相对路径
     this.startedAt = null; // 播放开始时间戳（计时进度用）
     this.pausedElapsed = 0; // 暂停前累计秒数
+    // 定时暂停（sleep timer）
+    this.sleepTimerId = null;       // setTimeout 句柄
+    this.sleepEndsAt = null;        // 到点时间戳（轮询算剩余用）
+    this.stopAfterCurrent = false;  // 到点兜底：自动推进时停，不进下一首
+    this.sleepFireSeq = 0;          // 到点序号（单调递增，前端按事件同步用）
   }
 
   // ---------- 对外接口 ----------
@@ -53,23 +58,24 @@ class PlayerManager {
     this.queue = [...queue];
     this.index = 0;
     this.playedSet = new Set();
+    this.stopAfterCurrent = false; // 新会话不继承 sleep 兜底标志
     this.outputMode = outputMode;
     this._playAt(Math.min(startIndex, queue.length - 1));
   }
 
-  /** 手动下一首（也供浏览器模式结束后调用） */
-  next() {
+  /** 下一首：手动切歌，或浏览器/服务端自动播完（auto:true） */
+  next({ auto = false } = {}) {
     if (this.state === STATE.IDLE) return { ok: false, error: '未在播放' };
-    // 手动切歌与自动播完语义不同：
-    //  - 自动播完(onEnded) → 队尾即停（spec 设计）
-    //  - 手动 next → 队尾循环回第一首，进度框不消失
-    if (this.playMode === PLAY_MODE.SEQUENTIAL && this.index + 1 >= this.queue.length) {
-      this._playAt(0); // 顺序模式队尾 → 回第一首
+    if (auto) {
+      // 自动推进：受 stopAfterCurrent 约束，到队尾即停
+      this._advanceAuto();
+    } else if (this.playMode === PLAY_MODE.SEQUENTIAL && this.index + 1 >= this.queue.length) {
+      this._playAt(0); // 手动 next：顺序队尾 → 回第一首
     } else if (this.playMode === PLAY_MODE.SHUFFLE) {
-      if (this.playedSet.size >= this.queue.length) this.playedSet.clear(); // 播完一轮重置
+      if (this.playedSet.size >= this.queue.length) this.playedSet.clear();
       this._advanceShuffle();
     } else {
-      this._advance(); // single：重播同一首
+      this._advance(); // 手动 next：single 重播 / sequential 中段前进
     }
     return { ok: true, ...this._status() };
   }
@@ -100,6 +106,13 @@ class PlayerManager {
     this.currentFile = null;
     this.startedAt = null;
     this.pausedElapsed = 0;
+    // 定时暂停：结束会话即清除（队列播完 / 手动停止都会走这里）
+    if (this.sleepTimerId) {
+      clearTimeout(this.sleepTimerId);
+      this.sleepTimerId = null;
+    }
+    this.sleepEndsAt = null;
+    this.stopAfterCurrent = false;
   }
 
   /** 设置循环模式 */
@@ -156,7 +169,7 @@ class PlayerManager {
   /** 播放结束回调（server 子进程自然退出时触发） */
   onEnded() {
     if (this.state !== STATE.PLAYING) return;
-    this._advance();
+    this._advanceAuto();
   }
 
   /** 按循环模式决定下一首 */
@@ -173,6 +186,46 @@ class PlayerManager {
         this._advanceShuffle();
         break;
     }
+  }
+
+  /** 自动推进（自然播完）：受 stopAfterCurrent 约束，命中即停 */
+  _advanceAuto() {
+    if (this.stopAfterCurrent) {
+      this.stopAfterCurrent = false;
+      this.stop();
+      return;
+    }
+    this._advance();
+  }
+
+  // ---------- 定时暂停（sleep timer） ----------
+
+  /** 启动定时暂停（totalMinutes 分钟后到点） */
+  startSleepTimer(totalMinutes) {
+    this.cancelSleepTimer();
+    this.sleepEndsAt = Date.now() + totalMinutes * 60000;
+    this.sleepTimerId = setTimeout(() => this._onSleepFire(), totalMinutes * 60000);
+  }
+
+  /** 取消定时暂停（不清 sleepFireSeq：序号只增不减） */
+  cancelSleepTimer() {
+    if (this.sleepTimerId) {
+      clearTimeout(this.sleepTimerId);
+      this.sleepTimerId = null;
+    }
+    this.sleepEndsAt = null;
+    this.stopAfterCurrent = false;
+  }
+
+  /**
+   * 到点回调：立兜底标志 + 尽力立即暂停。
+   * check-then-act 依赖 Node 单线程事件循环的同步性（回调内无 await，不会被中断）；
+   * 若未来引入 async，需重新评估此处竞态。
+   */
+  _onSleepFire() {
+    this.sleepFireSeq++;
+    this.stopAfterCurrent = true;
+    if (this.state === STATE.PLAYING) this.togglePause();
   }
 
   /** shuffle：从未播过的索引中随机选，全部播完即停 */
@@ -206,6 +259,10 @@ class PlayerManager {
       queueLength: this.queue.length,
       elapsed: this.state === STATE.PLAYING ? this._elapsedSeconds() : this.pausedElapsed,
       volume: playerServer.getVolume(),
+      sleepRemaining: this.sleepEndsAt
+        ? Math.max(0, Math.floor((this.sleepEndsAt - Date.now()) / 1000))
+        : null,
+      sleepFireSeq: this.sleepFireSeq,
     };
   }
 }
