@@ -14,7 +14,7 @@
   'use strict';
 
   let mode = localStorage.getItem('le_mode') || 'server'; // 默认音箱
-  let playMode = localStorage.getItem('le_playMode') || 'shuffle'; // 默认随机
+  let playMode = localStorage.getItem('le_playMode') || 'sequential'; // 默认顺序
 
   const fileTreeEl = document.getElementById('fileTree');
   const playerEl = document.getElementById('player');
